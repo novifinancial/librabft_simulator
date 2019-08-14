@@ -1,0 +1,14 @@
+[package]
+name = "bft_simulator_runtime"
+version = "0.1.0"
+authors = ["Calibra <opensource@calibra.org>"]
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+env_logger = "0.6.1"
+failure = "0.1.5"
+log = "0.4.6"
+rand = "0.6.5"
+clap = "2.33"
+csv = "1.1"
