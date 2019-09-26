@@ -21,7 +21,7 @@ RUST_LOG=warn cargo run --bin librabft_simulator
 
 This simulator is provided for research-purpose only and is not meant to be used in production. It will continue to evolve along with the LibraBFT whitepaper.
 
-Expected output:
+Example output:
 ```
     Finished dev [unoptimized + debuginfo] target(s) in 0.17s
      Running target/debug/librabft_simulator
