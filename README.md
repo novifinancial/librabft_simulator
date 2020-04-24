@@ -12,7 +12,7 @@ This repository is dedicated to sharing research material and scientific contrib
 
 ### The LibraBFT simulator
 
-In relation to the LibraBFT whitepaper [State Machine Replication in the Libra Blockchain](https://developers.libra.org/docs/state-machine-replication-paper), we are providing a minimal, reference implementation of the LibraBFT protocol in a discrete-event simulated environment.
+In relation to the [version 2](https://developers.libra.org/docs/assets/papers/libra-consensus-state-machine-replication-in-the-libra-blockchain/2019-10-24.pdf) of the LibraBFT report, we are providing a minimal, reference implementation of the protocol LibraBFTv2 in a discrete-event simulated environment.
 
 Usage:
 ```
