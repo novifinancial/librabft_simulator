@@ -1,12 +1,12 @@
-<a href="https://calibra.com/">
-	<img width="200" src=".assets/calibra.png" alt="Calibra Logo" />
+<a href="https://novi.com/">
+	<img width="100" src=".assets/novi.png" alt="Novi Logo" />
 </a>
 
 <hr/>
 
 [![License](https://img.shields.io/badge/license-Apache-green.svg)](LICENSE.md)
 
-This repository is dedicated to sharing research material and scientific contributions by Calibra researchers towards Libra Core development.
+This repository is dedicated to sharing research material and scientific contributions by researchers of Novi Financial (formerly Calibra).
 
 ## Projects
 
@@ -52,4 +52,4 @@ Get the latest updates to our project by signing up to our [newsletter](https://
 
 ## License
 
-The content of this repository is licensed as [Apache 2.0](https://github.com/calibra/research/blob/master/LICENSE)
+The content of this repository is licensed as [Apache 2.0](https://github.com/novi/research/blob/master/LICENSE)
