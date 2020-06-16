@@ -6,11 +6,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache-green.svg)](LICENSE.md)
 
-This repository is dedicated to sharing research material and scientific contributions by researchers of Novi Financial (formerly Calibra).
-
-## Projects
-
-### The LibraBFT simulator
+## The LibraBFT simulator
 
 In relation to the [version 2](https://developers.libra.org/docs/assets/papers/libra-consensus-state-machine-replication-in-the-libra-blockchain/2019-10-24.pdf) of the LibraBFT report, we are providing a minimal, reference implementation of the protocol LibraBFTv2 in a discrete-event simulated environment.
 
@@ -34,11 +30,6 @@ Example output:
     29,
 ]
 ```
-
-### Libra Technical Papers
-* [The Libra Blockchain](https://developers.libra.org/docs/the-libra-blockchain-paper)
-* [Move: A Language With Programmable Resources](https://developers.libra.org/docs/move-paper)
-* [State Machine Replication in the Libra Blockchain](https://developers.libra.org/docs/state-machine-replication-paper)
 
 ## Contributing
 
