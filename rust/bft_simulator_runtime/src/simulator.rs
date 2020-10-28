@@ -204,12 +204,8 @@ impl<Node, Context, Notification, Request, Response>
 where
     Context: std::fmt::Debug,
     Node: ConsensusNode<Context>
-        + DataSyncNode<
-            Context,
-            Notification = Notification,
-            Request = Request,
-            Response = Response,
-        > + ActiveRound
+        + DataSyncNode<Context, Notification = Notification, Request = Request, Response = Response>
+        + ActiveRound
         + std::fmt::Debug,
     Notification: std::cmp::Ord + std::fmt::Debug + std::clone::Clone,
     Request: std::cmp::Ord + std::fmt::Debug + std::clone::Clone,
@@ -281,12 +277,7 @@ where
     }
 
     pub fn loop_until(&mut self, max_clock: GlobalTime, csv_path: Option<String>) -> Vec<&Context> {
-        let mut data_writer = {
-            match csv_path {
-                Some(path) => Some(DataWriter::new(self.nodes.len(), path)),
-                None => None,
-            }
-        };
+        let mut data_writer = { csv_path.map(|path| DataWriter::new(self.nodes.len(), path)) };
 
         while let Some(ScheduledEvent(std::cmp::Reverse(clock), event)) = self.pending_events.pop()
         {

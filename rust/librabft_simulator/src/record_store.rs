@@ -688,10 +688,8 @@ impl RecordStore for RecordStoreState {
     }
 
     fn highest_commit_certificate(&self) -> Option<&QuorumCertificate> {
-        match self.highest_commit_certificate_hash {
-            Some(hash) => Some(self.quorum_certificate(hash).unwrap()),
-            None => None,
-        }
+        self.highest_commit_certificate_hash
+            .map(|hash| self.quorum_certificate(hash).unwrap())
     }
 
     fn highest_quorum_certificate(&self) -> Option<&QuorumCertificate> {

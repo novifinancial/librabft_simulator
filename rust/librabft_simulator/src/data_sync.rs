@@ -69,14 +69,12 @@ where
         // Pass the latest (non-empty) commit certificate across epochs.
         let highest_commit_certificate = match self.record_store().highest_commit_certificate() {
             Some(hqc) => Some(hqc.clone()),
-            None => match self.epoch_id().previous() {
-                Some(previous_epoch) => self
-                    .record_store_at(previous_epoch)
+            None => self.epoch_id().previous().and_then(|previous_epoch| {
+                self.record_store_at(previous_epoch)
                     .expect("The record store of the previous epoch should exist.")
                     .highest_commit_certificate()
-                    .cloned(),
-                None => None,
-            },
+                    .cloned()
+            }),
         };
         DataSyncNotification {
             current_epoch: self.epoch_id(),
