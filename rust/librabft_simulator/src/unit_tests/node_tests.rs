@@ -39,7 +39,7 @@ fn test_node() {
     let block_hash = BlockHash(hasher.finish());
 
     let state = context
-        .compute(&initial_state, cmd.clone(), NodeTime(1), None, Vec::new())
+        .compute(&initial_state, cmd, NodeTime(1), None, Vec::new())
         .unwrap();
 
     let v0 = match Record::make_vote(
