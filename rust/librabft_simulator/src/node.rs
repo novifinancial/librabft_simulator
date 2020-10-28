@@ -114,10 +114,9 @@ impl NodeState {
         if epoch_id == self.epoch_id {
             return Some(&self.record_store);
         }
-        match self.past_record_stores.get(&epoch_id) {
-            None => None,
-            Some(store) => Some(&*store),
-        }
+        self.past_record_stores
+            .get(&epoch_id)
+            .map(|store| &*store as &RecordStore)
     }
 
     pub fn pacemaker(&self) -> &Pacemaker {
