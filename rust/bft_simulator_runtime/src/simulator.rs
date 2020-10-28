@@ -1,7 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use rand::distributions::{Distribution, LogNormal};
+use rand_distr::{Distribution, LogNormal};
 use std::collections::{BinaryHeap, HashSet};
 
 use crate::{
@@ -28,7 +28,7 @@ impl std::ops::Add<Duration> for GlobalTime {
 
 #[derive(Copy, Clone)]
 pub struct RandomDelay {
-    distribution: LogNormal,
+    distribution: LogNormal<f64>,
 }
 
 impl RandomDelay {
@@ -37,7 +37,7 @@ impl RandomDelay {
         let mu = f64::ln(mean / f64::sqrt(1.0 + variance / (mean * mean)));
         let sigma = f64::sqrt(f64::ln(1.0 + variance / (mean * mean)));
         RandomDelay {
-            distribution: LogNormal::new(mu, sigma),
+            distribution: LogNormal::new(mu, sigma).unwrap(),
         }
     }
 }

@@ -6,6 +6,7 @@
 #[macro_use]
 extern crate failure;
 extern crate rand;
+extern crate rand_distr;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
