@@ -25,7 +25,7 @@ impl SharedRecordStore {
             .get(&Author(0))
             .unwrap()
             .last_committed_state()
-            .clone();
+            ;
         SharedRecordStore {
             store: RecordStoreState::new(
                 initial_hash,

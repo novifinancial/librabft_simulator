@@ -47,7 +47,7 @@ impl SimulatedLedgerState {
                 return false;
             }
         }
-        return true;
+        true
     }
 }
 

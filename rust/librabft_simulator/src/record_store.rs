@@ -152,7 +152,7 @@ impl<'a> Iterator for BackwardQuorumCertificateIterator<'a> {
         let qc = self.store.quorum_certificate(self.current_hash).unwrap();
         let block = self.store.block(qc.certified_block_hash).unwrap();
         self.current_hash = block.previous_quorum_certificate_hash;
-        return Some(qc);
+        Some(qc)
     }
 }
 
@@ -218,11 +218,9 @@ impl RecordStoreState {
             (r1, r2, r3)
         };
         if let (Some(r1), Some(r2), Some(r3)) = rounds {
-            if r3 == r2 + 1 && r2 == r1 + 1 {
-                if r1 > self.highest_committed_round {
-                    self.highest_committed_round = r1;
-                    self.highest_commit_certificate_hash = Some(qc_hash);
-                }
+            if r3 == r2 + 1 && r2 == r1 + 1 && r1 > self.highest_committed_round {
+                self.highest_committed_round = r1;
+                self.highest_commit_certificate_hash = Some(qc_hash);
             }
         }
     }
@@ -341,7 +339,7 @@ impl RecordStoreState {
                         certified_block_hash: qc.certified_block_hash,
                         state: qc.state.clone(),
                         committed_state: qc.committed_state.clone(),
-                        author: author.clone(),
+                        author: *author,
                         signature: Signature(0), // ignored
                     }));
                     signature.check(original_vote_digest, *author)?;
@@ -518,7 +516,7 @@ impl RecordStore for RecordStoreState {
         iter.next();
         iter.next();
         let mut commits = Vec::new();
-        while let Some(qc) = iter.next() {
+        for qc in iter {
             if qc.round <= after_round {
                 break;
             }
