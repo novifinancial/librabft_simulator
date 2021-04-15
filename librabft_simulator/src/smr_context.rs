@@ -42,7 +42,7 @@ pub trait StateFinalizer {
     fn discard(&mut self, state: &State);
 }
 
-/// How to communicate that a state was committed or discarded.
+/// How to read epoch ids and configuration from a state.
 pub trait EpochReader {
     /// Read the id of the epoch in a state.
     fn read_epoch_id(&self, state: &State) -> EpochId;
