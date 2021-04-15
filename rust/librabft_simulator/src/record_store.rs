@@ -188,10 +188,7 @@ impl RecordStoreState {
         }
     }
 
-    fn ancestor_rounds<'a>(
-        &'a self,
-        qc_hash: QuorumCertificateHash,
-    ) -> impl Iterator<Item = Round> + 'a {
+    fn ancestor_rounds(&self, qc_hash: QuorumCertificateHash) -> impl Iterator<Item = Round> + '_ {
         BackwardQuorumCertificateIterator::new(self, qc_hash).map(|qc| qc.round)
     }
 
@@ -665,7 +662,7 @@ impl RecordStore for RecordStoreState {
                         }
                     })
                     .collect();
-                let quorum_certificate = Record::make_quorum_certificate(
+                Record::make_quorum_certificate(
                     self.epoch_id,
                     self.current_round,
                     *block_hash,
@@ -673,8 +670,7 @@ impl RecordStore for RecordStoreState {
                     authors_and_signatures,
                     committed_state,
                     local_author,
-                );
-                quorum_certificate
+                )
             }
             _ => {
                 return false;

@@ -1,8 +1,6 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use std::iter::FromIterator;
-
 use super::*;
 
 #[test]
@@ -31,7 +29,7 @@ fn test_pick_author() {
         let author = config.pick_author(seed as u64);
         *hits.entry(author).or_insert(0) += 1;
     }
-    let mut results = Vec::from_iter(hits.iter().map(|x| *x.1));
+    let mut results = hits.iter().map(|x| *x.1).collect::<Vec<_>>();
     results.sort_unstable();
     assert_eq!(vec![1, 2, 5], results);
 }

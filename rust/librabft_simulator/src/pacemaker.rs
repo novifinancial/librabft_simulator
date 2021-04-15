@@ -101,8 +101,7 @@ impl PacemakerState {
     pub fn leader(record_store: &RecordStore, round: Round) -> Author {
         let mut hasher = DefaultHasher::new();
         round.hash(&mut hasher);
-        let author = record_store.pick_author(hasher.finish());
-        author
+        record_store.pick_author(hasher.finish())
     }
 
     fn duration(&self, record_store: &RecordStore, round: Round) -> Duration {

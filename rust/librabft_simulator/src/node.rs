@@ -1,6 +1,8 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(clippy::too_many_arguments)]
+
 use super::*;
 use base_types::*;
 use pacemaker::*;

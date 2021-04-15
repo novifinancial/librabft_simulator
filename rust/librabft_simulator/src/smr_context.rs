@@ -1,6 +1,8 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(clippy::upper_case_acronyms)]
+
 use super::*;
 use base_types::{Command, State};
 use record::QuorumCertificate;

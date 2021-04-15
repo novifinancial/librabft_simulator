@@ -45,6 +45,12 @@ impl NodeTime {
     }
 }
 
+impl Default for NodeTime {
+    fn default() -> Self {
+        Self::never()
+    }
+}
+
 impl std::ops::Add<Duration> for NodeTime {
     type Output = NodeTime;
 

@@ -21,11 +21,7 @@ impl SharedRecordStore {
                 SimulatedContext::new(Author(i), num_nodes, epoch_ttl),
             );
         }
-        let state = contexts
-            .get(&Author(0))
-            .unwrap()
-            .last_committed_state()
-            ;
+        let state = contexts.get(&Author(0)).unwrap().last_committed_state();
         SharedRecordStore {
             store: RecordStoreState::new(
                 initial_hash,

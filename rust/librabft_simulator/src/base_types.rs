@@ -59,7 +59,7 @@ pub fn merge_sort<T: Eq, I: IntoIterator<Item = T>, F: Fn(&T, &T) -> std::cmp::O
                 head1 = iter1.next();
             }
             std::cmp::Ordering::Equal => {
-                if head1 == head1 {
+                if head1 == head2 {
                     result.push(head1.unwrap());
                 } else {
                     result.push(head1.unwrap());

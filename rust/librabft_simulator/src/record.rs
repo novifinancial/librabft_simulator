@@ -1,6 +1,9 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
+// We only use comparison for testing.
+#![allow(clippy::derive_hash_xor_eq)]
+
 use super::*;
 use base_types::*;
 use std::{

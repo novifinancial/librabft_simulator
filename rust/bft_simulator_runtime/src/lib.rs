@@ -26,7 +26,7 @@ pub mod simulator;
 use crate::base_types::{Author, NodeTime, Round};
 
 // -- BEGIN FILE node_update_actions --
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct NodeUpdateActions {
     /// Time at which to call `update_node` again, at the latest.
     pub next_scheduled_update: NodeTime,
