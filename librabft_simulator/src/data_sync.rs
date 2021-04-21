@@ -3,6 +3,8 @@
 
 use super::*;
 use base_types::*;
+use bft_simulator_runtime::AsyncResult;
+use futures::future;
 use node::*;
 use record::*;
 use smr_context::SMRContext;
@@ -101,9 +103,9 @@ where
 
     fn handle_notification(
         &mut self,
-        notification: DataSyncNotification,
         smr_context: &mut Context,
-    ) -> Option<DataSyncRequest> {
+        notification: DataSyncNotification,
+    ) -> AsyncResult<Option<DataSyncRequest>> {
         // Whether we should request more data because of a new epoch or missings records.
         let mut should_sync = false;
         // Note that malicious nodes can always lie to make us send a request, but they may as
@@ -157,18 +159,23 @@ where
             self.insert_network_record(notification.current_epoch, Record::Vote(vote), smr_context);
         }
         // Create a follow-up request if needed.
-        if should_sync {
+        let value = if should_sync {
             Some(self.create_request_internal())
         } else {
             None
-        }
+        };
+        Box::new(future::ready(value))
     }
 
     fn create_request(&self) -> DataSyncRequest {
         self.create_request_internal()
     }
 
-    fn handle_request(&self, request: DataSyncRequest) -> DataSyncResponse {
+    fn handle_request(
+        &self,
+        _smr_context: &mut Context,
+        request: DataSyncRequest,
+    ) -> AsyncResult<DataSyncResponse> {
         let mut records = Vec::new();
         if let Some(store) = self.record_store_at(request.current_epoch) {
             records.push((
@@ -183,18 +190,19 @@ where
                 .expect("All record stores up to the current epoch should exist.");
             records.push((epoch_id, store.unknown_records(BTreeSet::new())));
         }
-        DataSyncResponse {
+        let value = DataSyncResponse {
             current_epoch: self.epoch_id(),
             records,
-        }
+        };
+        Box::new(future::ready(value))
     }
 
     fn handle_response(
         &mut self,
-        response: DataSyncResponse,
         smr_context: &mut Context,
+        response: DataSyncResponse,
         clock: NodeTime,
-    ) {
+    ) -> AsyncResult<()> {
         let num_records = response.records.len();
         // Insert all the records in order.
         // Process the commits so that new epochs are created along the way.
@@ -219,5 +227,6 @@ where
             self.process_commits(smr_context);
             self.update_tracker(clock);
         }
+        Box::new(future::ready(()))
     }
 }

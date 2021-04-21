@@ -51,5 +51,36 @@ pub trait EpochReader {
     fn configuration(&self, state: &State) -> EpochConfiguration;
 }
 
-pub trait SMRContext: CommandFetcher + StateComputer + StateFinalizer + EpochReader {}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Config {
+    pub author: Author,
+    pub target_commit_interval: Duration,
+    pub delta: Duration,
+    pub gamma: f64,
+    pub lambda: f64,
+}
+
+pub trait Storage {
+    fn config(&self) -> &Config;
+
+    fn state(&self) -> State;
+}
+
+pub trait SMRContext:
+    CommandFetcher + StateComputer + StateFinalizer + EpochReader + Storage
+{
+}
 // -- END FILE --
+
+impl Config {
+    #[cfg(test)]
+    pub fn new(author: Author) -> Config {
+        Config {
+            author,
+            target_commit_interval: Duration::default(),
+            delta: Duration::default(),
+            gamma: 0.0,
+            lambda: 0.0,
+        }
+    }
+}

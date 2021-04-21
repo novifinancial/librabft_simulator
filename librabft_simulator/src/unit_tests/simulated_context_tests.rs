@@ -37,7 +37,7 @@ fn test_happened_before() {
 #[test]
 fn test_simulated_context() {
     let mut context = SimulatedContext::new(
-        Author(0),
+        Config::new(Author(0)),
         /* num_nodes */ 2,
         /* max commands per epoch */ 2,
     );

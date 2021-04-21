@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use futures::executor::block_on;
 use simulated_context::*;
 use smr_context::*;
 use std::{
@@ -12,23 +13,14 @@ use std::{
 #[test]
 fn test_node() {
     let mut context = SimulatedContext::new(
-        Author(0),
+        Config::new(Author(0)),
         /* num_nodes */ 1,
         /* max commands per epoch */ 2,
     );
     let initial_hash = QuorumCertificateHash(0);
     let initial_state = context.last_committed_state();
     let epoch_id = EpochId(0);
-    let mut node1 = NodeState::new(
-        Author(0),
-        initial_state.clone(),
-        NodeTime(0),
-        1000,
-        30,
-        2.0,
-        0.5,
-        &context,
-    );
+    let mut node1 = block_on(NodeState::load_node(&mut context, NodeTime(0)));
 
     // Make a sequence of blocks / QCs
     let cmd = context.fetch().unwrap();

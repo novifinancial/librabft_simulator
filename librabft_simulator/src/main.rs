@@ -43,19 +43,15 @@ fn main() {
     let args = get_arguments();
 
     env_logger::init();
-    let context_factory =
-        |author, num_nodes| SimulatedContext::new(author, num_nodes, args.commands_per_epoch);
-    let node_factory = |author: Author, context: &SimulatedContext, clock: NodeTime| {
-        NodeState::new(
+    let context_factory = |author, num_nodes| {
+        let config = crate::smr_context::Config {
             author,
-            context.last_committed_state(),
-            clock,
-            args.target_commit_interval,
-            args.delta,
-            args.gamma,
-            args.lambda,
-            context,
-        )
+            target_commit_interval: args.target_commit_interval,
+            delta: args.delta,
+            gamma: args.gamma,
+            lambda: args.lambda,
+        };
+        SimulatedContext::new(config, num_nodes, args.commands_per_epoch)
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
     let mut sim = simulator::Simulator::<
@@ -64,12 +60,7 @@ fn main() {
         DataSyncNotification,
         DataSyncRequest,
         DataSyncResponse,
-    >::new(
-        args.nodes,
-        delay_distribution,
-        context_factory,
-        node_factory,
-    );
+    >::new(args.nodes, delay_distribution, context_factory);
     let contexts = sim.loop_until(
         simulator::GlobalTime(args.max_clock),
         args.output_data_files,

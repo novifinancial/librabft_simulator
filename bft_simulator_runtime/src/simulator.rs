@@ -1,6 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
+use futures::executor::block_on;
 use rand_distr::{Distribution, LogNormal};
 use std::collections::{BinaryHeap, HashSet};
 
@@ -102,7 +103,7 @@ where
 {
     fn update(&mut self, global_clock: GlobalTime) -> NodeUpdateActions {
         let local_clock = global_clock.to_node_time(self.startup_time);
-        self.node.update_node(local_clock, &mut self.context)
+        self.node.update_node(&mut self.context, local_clock)
     }
 }
 
@@ -125,30 +126,30 @@ pub struct Simulator<Node, Context, Notification, Request, Response> {
 impl<Node, Context, Notification, Request, Response>
     Simulator<Node, Context, Notification, Request, Response>
 where
+    Node: ConsensusNode<Context>,
     Notification: std::cmp::Ord + std::fmt::Debug,
     Request: std::cmp::Ord + std::fmt::Debug,
     Response: std::cmp::Ord + std::fmt::Debug,
 {
-    pub fn new<F, G>(
+    pub fn new<F>(
         num_nodes: usize,
         network_delay: RandomDelay,
         context_factory: F,
-        node_factory: G,
     ) -> Simulator<Node, Context, Notification, Request, Response>
     where
         F: Fn(Author, usize) -> Context,
-        G: Fn(Author, &Context, NodeTime) -> Node,
     {
         let clock = GlobalTime(0);
         let mut pending_events = BinaryHeap::new();
         let nodes = (0..num_nodes)
             .map(|index| {
                 let author = Author(index);
-                let context = context_factory(author, num_nodes);
+                let mut context = context_factory(author, num_nodes);
                 let startup_time = clock.add_delay(network_delay) + 1;
                 let node_time = NodeTime(0);
                 let deadline = GlobalTime::from_node_time(node_time, startup_time);
                 let event = Event::UpdateTimerEvent { author };
+                let node = block_on(Node::load_node(&mut context, node_time));
                 trace!(
                     "Scheduling initial event {:?} for time {:?}",
                     event,
@@ -158,7 +159,7 @@ where
                 SimulatedNode {
                     startup_time,
                     ignore_scheduled_updates_until: startup_time + (-1),
-                    node: node_factory(author, &context, node_time),
+                    node,
                     context,
                 }
             })
@@ -221,9 +222,11 @@ where
             "@{:?} Processing node actions for {:?}: {:?}",
             clock, author, actions
         );
-        // Timers
+        let mut node = self.nodes.get_mut(author.0).unwrap();
+        // First, we must save the state of the node.
+        block_on(node.node.save_node(&mut node.context));
+        // Then, schedule the next call to `update_node`.
         let new_deadline = {
-            let mut node = self.nodes.get_mut(author.0).unwrap();
             let new_deadline = std::cmp::max(
                 GlobalTime::from_node_time(actions.next_scheduled_update, node.startup_time),
                 // Make sure we schedule the update strictly in the future so it does not get
@@ -237,7 +240,7 @@ where
         };
         let event = Event::UpdateTimerEvent { author };
         self.schedule_event(new_deadline, event);
-        // Notifications
+        // Schedule sending notifications.
         let mut receivers = HashSet::new();
         for node in actions.should_send {
             receivers.insert(node);
@@ -257,7 +260,7 @@ where
                 notification: notification.clone(),
             });
         }
-        // Queries
+        // Schedule sending requests.
         let mut senders = HashSet::new();
         if actions.should_query_all {
             for index in 0..self.nodes.len() {
@@ -314,9 +317,10 @@ where
                     notification,
                 } => {
                     let node = self.simulated_node_mut(receiver);
-                    let result = node
-                        .node
-                        .handle_notification(notification, &mut node.context);
+                    let result = block_on(
+                        node.node
+                            .handle_notification(&mut node.context, notification),
+                    );
                     let actions = node.update(clock);
                     if let Some(request) = result {
                         self.schedule_network_event(Event::DataSyncRequestEvent {
@@ -337,7 +341,8 @@ where
                     sender,
                     request,
                 } => {
-                    let response = self.simulated_node_mut(sender).node.handle_request(request);
+                    let node = self.simulated_node_mut(receiver);
+                    let response = block_on(node.node.handle_request(&mut node.context, request));
                     self.schedule_network_event(Event::DataSyncResponseEvent {
                         sender,
                         receiver,
@@ -349,8 +354,10 @@ where
                 } => {
                     let node = self.simulated_node_mut(receiver);
                     let local_clock = clock.to_node_time(node.startup_time);
-                    node.node
-                        .handle_response(response, &mut node.context, local_clock);
+                    block_on(
+                        node.node
+                            .handle_response(&mut node.context, response, local_clock),
+                    );
                     let actions = node.update(clock);
                     trace!("Node state: {:?}", node);
                     self.process_node_actions(clock, receiver, actions);

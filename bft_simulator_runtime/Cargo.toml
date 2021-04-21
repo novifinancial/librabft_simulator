@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Calibra <opensource@calibra.org>"]
 license = "Apache-2.0"
 publish = false
+edition = "2018"
 
 [dependencies]
 env_logger = "0.8.1"
@@ -13,3 +14,4 @@ rand = "0.7.3"
 rand_distr = "0.3.0"
 clap = "2.33"
 csv = "1.1"
+futures = { version = "0.3.14", features = ["executor"] }
