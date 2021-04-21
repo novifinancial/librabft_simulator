@@ -5,6 +5,8 @@
 
 use super::*;
 use base_types::*;
+use bft_simulator_runtime::AsyncResult;
+use futures::future;
 use pacemaker::*;
 use record::*;
 use record_store::*;
@@ -69,29 +71,31 @@ impl CommitTracker {
 }
 
 impl NodeState {
-    pub fn new(
-        local_author: Author,
+    fn new(
+        config: smr_context::Config,
         initial_state: State,
         node_time: NodeTime,
-        target_commit_interval: Duration,
-        delta: Duration,
-        gamma: f64,
-        lambda: f64,
-        smr_context: &SMRContext,
+        context: &SMRContext,
     ) -> NodeState {
         let epoch_id = EpochId(0);
-        let tracker = CommitTracker::new(epoch_id, node_time, target_commit_interval);
+        let tracker = CommitTracker::new(epoch_id, node_time, config.target_commit_interval);
         let record_store = RecordStoreState::new(
             epoch_id.initial_hash(),
             initial_state.clone(),
             epoch_id,
-            smr_context.configuration(&initial_state),
+            context.configuration(&initial_state),
         );
         NodeState {
             record_store,
-            pacemaker: PacemakerState::new(epoch_id, node_time, delta, gamma, lambda),
+            pacemaker: PacemakerState::new(
+                epoch_id,
+                node_time,
+                config.delta,
+                config.gamma,
+                config.lambda,
+            ),
             epoch_id,
-            local_author,
+            local_author: config.author,
             latest_voted_round: Round(0),
             locked_round: Round(0),
             latest_query_all_time: node_time,
@@ -139,10 +143,10 @@ impl NodeState {
         &mut self,
         epoch_id: EpochId,
         record: Record,
-        smr_context: &mut SMRContext,
+        context: &mut SMRContext,
     ) {
         if epoch_id == self.epoch_id {
-            self.record_store.insert_network_record(record, smr_context);
+            self.record_store.insert_network_record(record, context);
         } else {
             debug!(
                 "{:?} Skipped records outside the current epoch ({:?} instead of {:?})",
@@ -164,7 +168,7 @@ impl NodeState {
         &mut self,
         pacemaker_actions: PacemakerUpdateActions,
         clock: NodeTime,
-        smr_context: &mut SMRContext,
+        context: &mut SMRContext,
     ) -> NodeUpdateActions {
         let mut actions = NodeUpdateActions::new();
         actions.next_scheduled_update = pacemaker_actions.next_scheduled_update;
@@ -173,17 +177,13 @@ impl NodeState {
         actions.should_send = pacemaker_actions.should_send;
         if let Some(round) = pacemaker_actions.should_create_timeout {
             self.record_store
-                .create_timeout(self.local_author, round, smr_context);
+                .create_timeout(self.local_author, round, context);
             // Prevent voting at a round for which we have created a timeout already.
             self.latest_voted_round.max_update(round);
         }
         if let Some(previous_qc_hash) = pacemaker_actions.should_propose_block {
-            self.record_store.propose_block(
-                self.local_author,
-                previous_qc_hash,
-                clock,
-                smr_context,
-            );
+            self.record_store
+                .propose_block(self.local_author, previous_qc_hash, clock, context);
         }
         actions
     }
@@ -192,7 +192,19 @@ impl NodeState {
 
 // -- BEGIN FILE consensus_node_impl --
 impl<Context: SMRContext> ConsensusNode<Context> for NodeState {
-    fn update_node(&mut self, clock: NodeTime, smr_context: &mut Context) -> NodeUpdateActions {
+    fn load_node(context: &mut Context, node_time: NodeTime) -> AsyncResult<Self> {
+        let config = context.config().clone();
+        let state = context.state();
+        let node = NodeState::new(config, state, node_time, &*context);
+        Box::new(future::ready(node))
+    }
+
+    fn save_node(&mut self, _context: &mut Context) -> AsyncResult<()> {
+        // TODO
+        Box::new(future::ready(()))
+    }
+
+    fn update_node(&mut self, context: &mut Context, clock: NodeTime) -> NodeUpdateActions {
         // Update pacemaker state and process pacemaker actions (e.g., creating a timeout, proposing
         // a block).
         let pacemaker_actions = self.pacemaker.update_pacemaker(
@@ -202,7 +214,7 @@ impl<Context: SMRContext> ConsensusNode<Context> for NodeState {
             self.latest_query_all_time,
             clock,
         );
-        let mut actions = self.process_pacemaker_actions(pacemaker_actions, clock, smr_context);
+        let mut actions = self.process_pacemaker_actions(pacemaker_actions, clock, context);
         // Vote on a valid proposal block designated by the pacemaker, if any.
         if let Some((block_hash, block_round, proposer)) =
             self.record_store.proposed_block(&self.pacemaker)
@@ -221,7 +233,7 @@ impl<Context: SMRContext> ConsensusNode<Context> for NodeState {
                 // Try to execute the command contained the a block and create a vote.
                 if self
                     .record_store
-                    .create_vote(self.local_author, block_hash, smr_context)
+                    .create_vote(self.local_author, block_hash, context)
                 {
                     // Ask to notify and send our vote to the author of the block.
                     actions.should_send = vec![proposer];
@@ -231,7 +243,7 @@ impl<Context: SMRContext> ConsensusNode<Context> for NodeState {
         // Check if our last proposal has reached a quorum of votes and create a QC.
         if self
             .record_store
-            .check_for_new_quorum_certificate(self.local_author, smr_context)
+            .check_for_new_quorum_certificate(self.local_author, context)
         {
             // Broadcast the QC to finish our work as a leader.
             actions.should_broadcast = true;
@@ -239,7 +251,7 @@ impl<Context: SMRContext> ConsensusNode<Context> for NodeState {
             actions.next_scheduled_update = clock;
         }
         // Check for new commits and verify if we should start a new epoch.
-        self.process_commits(smr_context);
+        self.process_commits(context);
         // Update the commit tracker and ask that we query all nodes if needed.
         let tracker_actions = self.tracker.update_tracker(
             self.latest_query_all_time,
@@ -264,7 +276,7 @@ impl<Context: SMRContext> ConsensusNode<Context> for NodeState {
 
 // -- BEGIN FILE process_commits --
 impl NodeState {
-    pub fn process_commits(&mut self, smr_context: &mut SMRContext) {
+    pub fn process_commits(&mut self, context: &mut SMRContext) {
         // For all commits that have not been processed yet, according to the commit tracker..
         for (round, state) in self
             .record_store
@@ -273,19 +285,19 @@ impl NodeState {
             // .. deliver the committed state to the SMR layer, together with a commit certificate,
             // if any.
             if round == self.record_store.highest_committed_round() {
-                smr_context.commit(&state, self.record_store.highest_commit_certificate())
+                context.commit(&state, self.record_store.highest_commit_certificate())
             } else {
-                smr_context.commit(&state, None);
+                context.commit(&state, None);
             };
             // .. check if the current epoch just ended. If it did..
-            let new_epoch_id = smr_context.read_epoch_id(&state);
+            let new_epoch_id = context.read_epoch_id(&state);
             if new_epoch_id > self.epoch_id {
                 // .. create a new record store and switch to the new epoch.
                 let new_record_store = RecordStoreState::new(
                     new_epoch_id.initial_hash(),
                     state.clone(),
                     new_epoch_id,
-                    smr_context.configuration(&state),
+                    context.configuration(&state),
                 );
                 let old_record_store = std::mem::replace(&mut self.record_store, new_record_store);
                 self.past_record_stores

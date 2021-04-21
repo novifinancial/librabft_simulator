@@ -41,18 +41,27 @@ pub struct NodeUpdateActions {
 
 impl NodeUpdateActions {
     pub fn new() -> Self {
-        NodeUpdateActions {
-            next_scheduled_update: NodeTime::never(),
-            should_send: Vec::new(),
-            should_broadcast: false,
-            should_query_all: false,
-        }
+        NodeUpdateActions::default()
     }
 }
 
+// TODO: add error handling + remove Unpin
+// Alternatively, we may want to use a generic associated type when there are available on
+// rust-stable:   https://github.com/rust-lang/rust/issues/44265
+pub type AsyncResult<T> = Box<dyn std::future::Future<Output = T> + Unpin + 'static>;
+
 // -- BEGIN FILE consensus_node --
-pub trait ConsensusNode<Context> {
-    fn update_node(&mut self, clock: NodeTime, context: &mut Context) -> NodeUpdateActions;
+pub trait ConsensusNode<Context>: Sized {
+    /// Read data from storage and crate a view of the node state in memory.
+    fn load_node(context: &mut Context, clock: NodeTime) -> AsyncResult<Self>;
+
+    /// Execute one step of the main event loop of the protocol.
+    /// "Stage" changes to the node state by mutating `self`.
+    fn update_node(&mut self, context: &mut Context, clock: NodeTime) -> NodeUpdateActions;
+
+    /// Save the "staged" node state into storage, possibly after applying additional async
+    /// operations.
+    fn save_node(&mut self, context: &mut Context) -> AsyncResult<()>;
 }
 // -- END FILE --
 
@@ -64,18 +73,31 @@ pub trait DataSyncNode<Context> {
 
     /// Sender role: what to send to initiate a data-synchronization exchange with a receiver.
     fn create_notification(&self) -> Self::Notification;
+
     /// Query role: what to send to initiate a query exchange and obtain data from a sender.
     fn create_request(&self) -> Self::Request;
+
     /// Sender role: handle a request from a receiver.
-    fn handle_request(&self, request: Self::Request) -> Self::Response;
+    fn handle_request(
+        &self,
+        context: &mut Context,
+        request: Self::Request,
+    ) -> AsyncResult<Self::Response>;
+
     /// Receiver role: accept or refuse a notification.
     fn handle_notification(
         &mut self,
-        notification: Self::Notification,
         context: &mut Context,
-    ) -> Option<Self::Request>;
+        notification: Self::Notification,
+    ) -> AsyncResult<Option<Self::Request>>;
+
     /// Receiver role: receive data.
-    fn handle_response(&mut self, response: Self::Response, context: &mut Context, clock: NodeTime);
+    fn handle_response(
+        &mut self,
+        context: &mut Context,
+        response: Self::Response,
+        clock: NodeTime,
+    ) -> AsyncResult<()>;
 }
 // -- END FILE --
 
