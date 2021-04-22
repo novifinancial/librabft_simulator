@@ -116,6 +116,11 @@ where
     }
 }
 
+/// Simulate the execution of a consensus protocol (including
+/// configuration changes) over a randomized network.
+///
+/// TODO: simulate changing network conditions, addition/removal/disconnection of nodes, etc.
+///
 pub struct Simulator<Node, Context, Notification, Request, Response> {
     clock: GlobalTime,
     network_delay: RandomDelay,
@@ -246,6 +251,9 @@ where
             receivers.insert(node);
         }
         if actions.should_broadcast {
+            // TODO: broadcasting to all (past and future) nodes in the network is not entirely
+            // realistic. The pseudo-code should probably use `actions.should_send` instead to
+            // broadcast only to the nodes that a sender consider part of the epoch.
             for index in 0..self.nodes.len() {
                 if index != author.0 {
                     receivers.insert(Author(index));
@@ -263,6 +271,7 @@ where
         // Schedule sending requests.
         let mut senders = HashSet::new();
         if actions.should_query_all {
+            // TODO: similarly `should_query_all` is probably too coarse.
             for index in 0..self.nodes.len() {
                 if index != author.0 {
                     senders.insert(Author(index));
