@@ -1,8 +1,8 @@
 [workspace]
 
 members = [
-        "rust/bft_simulator_runtime",
-        "rust/librabft_simulator",
+        "bft_simulator_runtime",
+        "librabft_simulator",
 ]
 
 [profile.release]
