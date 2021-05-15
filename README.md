@@ -1,14 +1,16 @@
-<a href="https://novi.com/">
-	<img width="100" src=".assets/novi.png" alt="Novi Logo" />
-</a>
-
-<hr/>
-
 [![License](https://img.shields.io/badge/license-Apache-green.svg)](LICENSE.md)
+
+# Discrete-event simulation for BFT consensus protocols
+
+The code in this repository is experimental and meant to explore the simulation and the specification of BFT consensus protocols such as LibraBFT / DiemBFT.
+
+**Note:** On December 1, 2020, the Libra Association was renamed to Diem Association. In this repository, we use LibraBFT to denote early versions of the consensus protocol now
+used in the [Diem blockchain](https://github.com/diem/diem).
 
 ## The LibraBFT simulator
 
-In relation to the [version 2](https://developers.libra.org/docs/assets/papers/libra-consensus-state-machine-replication-in-the-libra-blockchain/2019-10-24.pdf) of the LibraBFT report, we are providing a minimal, reference implementation of the protocol LibraBFTv2 in a discrete-event simulated environment.
+In relation to the [version 2](https://diem-developers-components.netlify.app/papers/diem-consensus-state-machine-replication-in-the-diem-blockchain/2019-10-24.pdf) of the
+LibraBFT report, we are providing a minimal, reference implementation of the protocol LibraBFTv2 in a discrete-event simulated environment.
 
 Usage:
 ```
