@@ -3,9 +3,11 @@
 
 #![allow(clippy::upper_case_acronyms)]
 
-use super::*;
-use base_types::{Command, State};
-use record::QuorumCertificate;
+use crate::{
+    base_types::{Command, EpochId, State},
+    record::QuorumCertificate,
+};
+use bft_lib::{base_types::*, EpochConfiguration};
 
 // -- BEGIN FILE smr_apis --
 pub trait CommandFetcher {

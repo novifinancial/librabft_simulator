@@ -4,8 +4,8 @@
 // We only use comparison for testing.
 #![allow(clippy::derive_hash_xor_eq)]
 
-use super::*;
-use base_types::*;
+use crate::base_types::*;
+use bft_lib::base_types::*;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},

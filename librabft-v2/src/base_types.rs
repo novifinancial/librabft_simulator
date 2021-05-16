@@ -1,7 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::Author;
+use bft_lib::base_types::Author;
 
 #[cfg(test)]
 #[path = "unit_tests/base_type_tests.rs"]

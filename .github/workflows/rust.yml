@@ -11,7 +11,6 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -22,3 +21,7 @@ jobs:
       run: cargo test --verbose
     - name: Run LibraBFT simulator
       run: RUST_LOG=warn cargo run --bin librabft_simulator
+    - name: Rustfmt
+      run: cargo fmt -- --check
+    - name: Clippy
+      run: cargo clippy --all-features --all-targets

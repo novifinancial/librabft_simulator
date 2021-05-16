@@ -1,0 +1,24 @@
+[package]
+name = "librabft-v2"
+version = "0.1.0"
+description = "Executable specifications for the LibraBFTv2 protocol"
+repository = "https://github.com/novifinancial/librabft_simulator"
+authors = ["Mathieu Baudet <mathieubaudet@fb.com>", "Alberto Sonnino <asonnino@fb.com>"]
+license = "Apache-2.0"
+publish = false
+edition = "2018"
+
+[dependencies]
+env_logger = "0.8.1"
+failure = "0.1.5"
+log = "0.4.6"
+rand = "0.7.3"
+clap = "2.33"
+csv = "1.1"
+bft-lib = { path = "../bft-lib" }
+futures = "0.3.14"
+
+[[bin]]
+name = "librabft_simulator"
+path = "src/main.rs"
+test = true

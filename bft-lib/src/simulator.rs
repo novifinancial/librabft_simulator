@@ -1,15 +1,15 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use futures::executor::block_on;
-use rand_distr::{Distribution, LogNormal};
-use std::collections::{BinaryHeap, HashSet};
-
 use crate::{
     base_types::{Author, Duration, NodeTime, Round},
-    data_writer::*,
+    data_writer::DataWriter,
     ActiveRound, ConsensusNode, DataSyncNode, NodeUpdateActions,
 };
+use futures::executor::block_on;
+use log::{debug, trace};
+use rand_distr::{Distribution, LogNormal};
+use std::collections::{BinaryHeap, HashSet};
 
 #[cfg(test)]
 #[path = "unit_tests/simulator_tests.rs"]
@@ -120,7 +120,6 @@ where
 /// configuration changes) over a randomized network.
 ///
 /// TODO: simulate changing network conditions, addition/removal/disconnection of nodes, etc.
-///
 pub struct Simulator<Node, Context, Notification, Request, Response> {
     clock: GlobalTime,
     network_delay: RandomDelay,

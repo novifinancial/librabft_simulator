@@ -3,15 +3,10 @@
 
 #![allow(clippy::too_many_arguments)]
 
-use super::*;
-use base_types::*;
-use bft_simulator_runtime::AsyncResult;
+use crate::{base_types::*, pacemaker::*, record::*, record_store::*, smr_context::SMRContext};
+use bft_lib::{base_types::*, ActiveRound, AsyncResult, ConsensusNode, NodeUpdateActions};
 use futures::future;
-use pacemaker::*;
-use record::*;
-use record_store::*;
-use smr_context::SMRContext;
-
+use log::debug;
 use std::{
     cmp::{max, min},
     collections::HashMap,
@@ -72,10 +67,10 @@ impl CommitTracker {
 
 impl NodeState {
     fn new(
-        config: smr_context::Config,
+        config: crate::smr_context::Config,
         initial_state: State,
         node_time: NodeTime,
-        context: &SMRContext,
+        context: &dyn SMRContext,
     ) -> NodeState {
         let epoch_id = EpochId(0);
         let tracker = CommitTracker::new(epoch_id, node_time, config.target_commit_interval);
@@ -112,20 +107,20 @@ impl NodeState {
         self.local_author
     }
 
-    pub fn record_store(&self) -> &RecordStore {
+    pub fn record_store(&self) -> &dyn RecordStore {
         &self.record_store
     }
 
-    pub fn record_store_at(&self, epoch_id: EpochId) -> Option<&RecordStore> {
+    pub fn record_store_at(&self, epoch_id: EpochId) -> Option<&dyn RecordStore> {
         if epoch_id == self.epoch_id {
             return Some(&self.record_store);
         }
         self.past_record_stores
             .get(&epoch_id)
-            .map(|store| &*store as &RecordStore)
+            .map(|store| &*store as &dyn RecordStore)
     }
 
-    pub fn pacemaker(&self) -> &Pacemaker {
+    pub fn pacemaker(&self) -> &dyn Pacemaker {
         &self.pacemaker
     }
 
@@ -143,7 +138,7 @@ impl NodeState {
         &mut self,
         epoch_id: EpochId,
         record: Record,
-        context: &mut SMRContext,
+        context: &mut dyn SMRContext,
     ) {
         if epoch_id == self.epoch_id {
             self.record_store.insert_network_record(record, context);
@@ -168,7 +163,7 @@ impl NodeState {
         &mut self,
         pacemaker_actions: PacemakerUpdateActions,
         clock: NodeTime,
-        context: &mut SMRContext,
+        context: &mut dyn SMRContext,
     ) -> NodeUpdateActions {
         let mut actions = NodeUpdateActions::new();
         actions.next_scheduled_update = pacemaker_actions.next_scheduled_update;
@@ -276,7 +271,7 @@ impl<Context: SMRContext> ConsensusNode<Context> for NodeState {
 
 // -- BEGIN FILE process_commits --
 impl NodeState {
-    pub fn process_commits(&mut self, context: &mut SMRContext) {
+    pub fn process_commits(&mut self, context: &mut dyn SMRContext) {
         // For all commits that have not been processed yet, according to the commit tracker..
         for (round, state) in self
             .record_store
@@ -329,7 +324,7 @@ impl CommitTracker {
         latest_query_all_time: NodeTime,
         clock: NodeTime,
         current_epoch_id: EpochId,
-        current_record_store: &RecordStore,
+        current_record_store: &dyn RecordStore,
     ) -> CommitTrackerUpdateActions {
         let mut actions = CommitTrackerUpdateActions::new();
         // Update tracked values: epoch, round, and time of the latest commit.

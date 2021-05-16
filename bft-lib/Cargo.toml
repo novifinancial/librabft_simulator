@@ -1,7 +1,9 @@
 [package]
-name = "bft_simulator_runtime"
+name = "bft-lib"
 version = "0.1.0"
-authors = ["Calibra <opensource@calibra.org>"]
+description = "Common interfaces and simulation tools for BFT consensus protocols such as LibraBFT"
+repository = "https://github.com/novifinancial/librabft_simulator"
+authors = ["Mathieu Baudet <mathieubaudet@fb.com>", "Alberto Sonnino <asonnino@fb.com>"]
 license = "Apache-2.0"
 publish = false
 edition = "2018"

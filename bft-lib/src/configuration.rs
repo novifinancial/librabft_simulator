@@ -8,6 +8,13 @@ use std::collections::BTreeMap;
 #[path = "unit_tests/configuration_tests.rs"]
 mod configuration_tests;
 
+#[derive(Eq, PartialEq, Clone, Debug)]
+/// Hold voting rights for a give epoch.
+pub struct EpochConfiguration {
+    voting_rights: BTreeMap<Author, usize>,
+    total_votes: usize,
+}
+
 impl EpochConfiguration {
     pub fn new(voting_rights: BTreeMap<Author, usize>) -> Self {
         let total_votes = voting_rights.iter().fold(0, |sum, (_, votes)| sum + *votes);

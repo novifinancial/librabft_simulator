@@ -1,31 +1,15 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-#![allow(bare_trait_objects)]
-
-#[macro_use]
-extern crate failure;
-extern crate rand;
-extern crate rand_distr;
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-
-use std::collections::BTreeMap;
-
-// Comments in the following form are used for code-block generation in the consensus report:
-//    "// -- BEGIN FILE name --"
-//    "// -- END FILE --"
-// Do not modify definitions without changing the report as well :)
-
 pub mod base_types;
-pub mod configuration;
+mod configuration;
 pub mod data_writer;
 pub mod simulator;
 
 use crate::base_types::{Author, NodeTime, Round};
 
 // -- BEGIN FILE node_update_actions --
+/// Actions required by `ConsensusNode::update_node`.
 #[derive(Debug, Default)]
 pub struct NodeUpdateActions {
     /// Time at which to call `update_node` again, at the latest.
@@ -51,6 +35,7 @@ impl NodeUpdateActions {
 pub type AsyncResult<T> = Box<dyn std::future::Future<Output = T> + Unpin + 'static>;
 
 // -- BEGIN FILE consensus_node --
+/// Core event handlers of a consensus node.
 pub trait ConsensusNode<Context>: Sized {
     /// Read data from storage and crate a view of the node state in memory.
     fn load_node(context: &mut Context, clock: NodeTime) -> AsyncResult<Self>;
@@ -66,6 +51,7 @@ pub trait ConsensusNode<Context>: Sized {
 // -- END FILE --
 
 // -- BEGIN FILE data_sync_node --
+/// Network event handlers of a consensus node.
 pub trait DataSyncNode<Context> {
     type Notification;
     type Request;
@@ -101,13 +87,11 @@ pub trait DataSyncNode<Context> {
 }
 // -- END FILE --
 
+/// Trait to help visualizing rounds in a simulator.
+// TODO: the notion of round is specific to some BFT protocols => rename and/or generalize?
 pub trait ActiveRound {
     fn active_round(&self) -> Round;
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
-/// Hold voting rights for a give epoch.
-pub struct EpochConfiguration {
-    voting_rights: BTreeMap<Author, usize>,
-    total_votes: usize,
-}
+/// Datatype to handle BFT permissions during an epoch.
+pub use configuration::EpochConfiguration;
