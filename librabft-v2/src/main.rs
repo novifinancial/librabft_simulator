@@ -1,50 +1,19 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-#![allow(bare_trait_objects)]
+//! Main executable to run a simulation of LibraBFT v2.
 
-#[macro_use]
-extern crate failure;
-extern crate rand;
-#[macro_use]
-extern crate log;
-extern crate bft_simulator_runtime;
-extern crate clap;
-extern crate env_logger;
-
+use bft_lib::{base_types::*, simulator};
 use clap::{App, Arg};
-use std::{collections::BTreeMap, fmt::Debug};
-
-// Comments in the following form are used for code-block generation in the consensus report:
-//    "// -- BEGIN FILE name --"
-//    "// -- END FILE --"
-// Do not modify definitions without changing the report as well :)
-
-mod base_types;
-mod data_sync;
-mod node;
-mod pacemaker;
-mod record;
-mod record_store;
-mod simulated_context;
-mod smr_context;
-
-use bft_simulator_runtime::{
-    base_types::*, simulator, ActiveRound, ConsensusNode, DataSyncNode, EpochConfiguration,
-    NodeUpdateActions,
-};
-
-use base_types::*;
-use data_sync::*;
-use node::NodeState;
-use simulated_context::SimulatedContext;
+use librabft_v2::{data_sync::*, node::NodeState, simulated_context::SimulatedContext};
+use log::{info, warn};
 
 fn main() {
     let args = get_arguments();
 
     env_logger::init();
     let context_factory = |author, num_nodes| {
-        let config = crate::smr_context::Config {
+        let config = librabft_v2::smr_context::Config {
             author,
             target_commit_interval: args.target_commit_interval,
             delta: args.delta,
@@ -88,6 +57,7 @@ struct CliArguments {
     output_data_files: Option<String>,
 }
 
+// TODO: use structopt
 fn get_arguments() -> CliArguments {
     let matches = App::new("Consensus simulator")
         .about("A monte-carlo simulation of the LibraBFT consensus protocol")

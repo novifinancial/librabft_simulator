@@ -1,7 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use failure::Error;
+use failure::{ensure, Error};
 use std::{
     collections::hash_map::DefaultHasher,
     fmt,

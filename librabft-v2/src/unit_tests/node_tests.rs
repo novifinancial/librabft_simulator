@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use crate::{simulated_context::*, smr_context::*};
 use futures::executor::block_on;
-use simulated_context::*;
-use smr_context::*;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},

@@ -1,8 +1,7 @@
 [workspace]
-
 members = [
-        "bft_simulator_runtime",
-        "librabft_simulator",
+        "bft-lib",
+        "librabft-v2",
 ]
 
 [profile.release]

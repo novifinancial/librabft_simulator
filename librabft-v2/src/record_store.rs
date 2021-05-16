@@ -1,11 +1,15 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
-use base_types::*;
-use pacemaker::{Pacemaker, PacemakerState};
-use record::*;
-use smr_context::SMRContext;
+use crate::{
+    base_types::*,
+    pacemaker::{Pacemaker, PacemakerState},
+    record::*,
+    smr_context::SMRContext,
+};
+use bft_lib::{base_types::*, EpochConfiguration};
+use failure::{bail, ensure};
+use log::{debug, info, warn};
 use std::{
     collections::{BTreeSet, HashMap},
     fmt::Debug,
@@ -37,19 +41,19 @@ pub trait RecordStore: Debug {
     fn committed_states_after(&self, after_round: Round) -> Vec<(Round, State)>;
 
     /// Access the block proposed by the leader chosen by the Pacemaker (if any).
-    fn proposed_block(&self, pacemaker: &Pacemaker) -> Option<(BlockHash, Round, Author)>;
+    fn proposed_block(&self, pacemaker: &dyn Pacemaker) -> Option<(BlockHash, Round, Author)>;
     /// Check if a timeout already exists.
     fn has_timeout(&self, author: Author, round: Round) -> bool;
 
     /// Create a timeout.
-    fn create_timeout(&mut self, author: Author, round: Round, smr_context: &mut SMRContext);
+    fn create_timeout(&mut self, author: Author, round: Round, smr_context: &mut dyn SMRContext);
     /// Fetch a command from mempool and propose a block.
     fn propose_block(
         &mut self,
         local_author: Author,
         previous_qc_hash: QuorumCertificateHash,
         clock: NodeTime,
-        smr_context: &mut SMRContext,
+        smr_context: &mut dyn SMRContext,
     );
     /// Execute the command contained in a block and vote for the resulting state.
     /// Return false if the execution failed.
@@ -57,13 +61,13 @@ pub trait RecordStore: Debug {
         &mut self,
         local_author: Author,
         block_hash: BlockHash,
-        smr_context: &mut SMRContext,
+        smr_context: &mut dyn SMRContext,
     ) -> bool;
     /// Try to create a QC for the last block that we have proposed.
     fn check_for_new_quorum_certificate(
         &mut self,
         local_author: Author,
-        smr_context: &mut SMRContext,
+        smr_context: &mut dyn SMRContext,
     ) -> bool;
 
     /// Compute the previous round and the second previous round of a block.
@@ -78,7 +82,7 @@ pub trait RecordStore: Debug {
     fn block(&self, block_hash: BlockHash) -> Option<&Block>;
     fn known_quorum_certificate_rounds(&self) -> BTreeSet<Round>;
     fn unknown_records(&self, known_qc_rounds: BTreeSet<Round>) -> Vec<Record>;
-    fn insert_network_record(&mut self, record: Record, smr_context: &mut SMRContext);
+    fn insert_network_record(&mut self, record: Record, smr_context: &mut dyn SMRContext);
 }
 // -- END FILE --
 
@@ -382,7 +386,7 @@ impl RecordStoreState {
         self.quorum_certificates.get(&qc_hash)
     }
 
-    fn compute_state(&self, block_hash: BlockHash, smr_context: &mut SMRContext) -> Option<State> {
+    fn compute_state(&self, block_hash: BlockHash, smr_context: &mut dyn SMRContext) -> Option<State> {
         let block = self.block(block_hash).unwrap();
         let (previous_state, previous_voters, previous_author) = {
             if block.previous_quorum_certificate_hash == self.initial_hash {
@@ -407,7 +411,7 @@ impl RecordStoreState {
     fn try_insert_network_record(
         &mut self,
         record: Record,
-        smr_context: &mut SMRContext,
+        smr_context: &mut dyn SMRContext,
     ) -> Result<()> {
         // First, check that the record is "relevant" and that invariants of "verified records",
         // such as chaining, are respected.
@@ -559,7 +563,7 @@ impl RecordStore for RecordStoreState {
         }
     }
 
-    fn proposed_block(&self, pacemaker: &Pacemaker) -> Option<(BlockHash, Round, Author)> {
+    fn proposed_block(&self, pacemaker: &dyn Pacemaker) -> Option<(BlockHash, Round, Author)> {
         if self.epoch_id != pacemaker.active_epoch()
             || self.current_round != pacemaker.active_round()
         {
@@ -581,7 +585,7 @@ impl RecordStore for RecordStoreState {
         }
     }
 
-    fn create_timeout(&mut self, author: Author, round: Round, smr_context: &mut SMRContext) {
+    fn create_timeout(&mut self, author: Author, round: Round, smr_context: &mut dyn SMRContext) {
         self.insert_network_record(
             Record::make_timeout(
                 self.epoch_id,
@@ -602,7 +606,7 @@ impl RecordStore for RecordStoreState {
         local_author: Author,
         previous_qc_hash: QuorumCertificateHash,
         clock: NodeTime,
-        smr_context: &mut SMRContext,
+        smr_context: &mut dyn SMRContext,
     ) {
         if let Some(command) = smr_context.fetch() {
             let block = Record::make_block(
@@ -620,7 +624,7 @@ impl RecordStore for RecordStoreState {
         &mut self,
         local_author: Author,
         block_hash: BlockHash,
-        smr_context: &mut SMRContext,
+        smr_context: &mut dyn SMRContext,
     ) -> bool {
         let committed_state = self.vote_committed_state(block_hash);
         match self.compute_state(block_hash, smr_context) {
@@ -643,7 +647,7 @@ impl RecordStore for RecordStoreState {
     fn check_for_new_quorum_certificate(
         &mut self,
         local_author: Author,
-        smr_context: &mut SMRContext,
+        smr_context: &mut dyn SMRContext,
     ) -> bool {
         let quorum_certificate = match &self.current_election {
             ElectionState::Won { block_hash, state } => {
@@ -762,7 +766,7 @@ impl RecordStore for RecordStoreState {
         result
     }
 
-    fn insert_network_record(&mut self, record: Record, smr_context: &mut SMRContext) {
+    fn insert_network_record(&mut self, record: Record, smr_context: &mut dyn SMRContext) {
         debug!("Inserting {:?}", record);
         match self.try_insert_network_record(record, smr_context) {
             Err(err) => {

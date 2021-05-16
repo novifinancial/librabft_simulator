@@ -1,14 +1,16 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::{
+    base_types::{EpochId, QuorumCertificateHash},
+    record_store::*,
+};
+use bft_lib::base_types::{Author, Duration, NodeTime, Round};
 use std::{
     cmp::{max, min},
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
 };
-
-use super::*;
-use record_store::*;
 
 #[cfg(test)]
 #[path = "unit_tests/pacemaker_tests.rs"]
@@ -33,7 +35,7 @@ pub struct PacemakerUpdateActions {
 // -- END FILE --
 
 // -- BEGIN FILE pacemaker --
-pub trait Pacemaker: Debug {
+pub trait Pacemaker: std::fmt::Debug {
     /// Update our state from the given data and return some action items.
     fn update_pacemaker(
         &mut self,
@@ -42,7 +44,7 @@ pub trait Pacemaker: Debug {
         // Current epoch.
         epoch_id: EpochId,
         // Known records.
-        record_store: &RecordStore,
+        record_store: &dyn RecordStore,
         // Local time of the latest query-all by us.
         latest_query_all: NodeTime,
         // Current local time.
@@ -98,13 +100,13 @@ impl PacemakerState {
         }
     }
 
-    pub fn leader(record_store: &RecordStore, round: Round) -> Author {
+    pub fn leader(record_store: &dyn RecordStore, round: Round) -> Author {
         let mut hasher = DefaultHasher::new();
         round.hash(&mut hasher);
         record_store.pick_author(hasher.finish())
     }
 
-    fn duration(&self, record_store: &RecordStore, round: Round) -> Duration {
+    fn duration(&self, record_store: &dyn RecordStore, round: Round) -> Duration {
         let highest_commit_certificate_round = if record_store.highest_committed_round() > Round(0)
         {
             record_store.highest_committed_round() + 2
@@ -120,8 +122,8 @@ impl PacemakerState {
     }
 }
 
-impl PacemakerUpdateActions {
-    pub fn new() -> Self {
+impl Default for PacemakerUpdateActions {
+    fn default() -> Self {
         PacemakerUpdateActions {
             next_scheduled_update: NodeTime::never(),
             should_create_timeout: None,
@@ -139,12 +141,12 @@ impl Pacemaker for PacemakerState {
         &mut self,
         local_author: Author,
         epoch_id: EpochId,
-        record_store: &RecordStore,
+        record_store: &dyn RecordStore,
         latest_query_all_time: NodeTime,
         clock: NodeTime,
     ) -> PacemakerUpdateActions {
         // Initialize actions with default values.
-        let mut actions = PacemakerUpdateActions::new();
+        let mut actions = PacemakerUpdateActions::default();
         // Compute the active round from the current record store.
         let active_round = max(
             record_store.highest_quorum_certificate_round(),
