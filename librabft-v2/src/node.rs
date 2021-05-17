@@ -5,7 +5,7 @@
 
 use crate::{base_types::QuorumCertificateHash, pacemaker::*, record::*, record_store::*};
 use bft_lib::{
-    base_types::*, smr_context, smr_context::SMRContext, AsyncResult, ConsensusNode,
+    base_types::*, smr_context, smr_context::SmrContext, AsyncResult, ConsensusNode,
     NodeUpdateActions,
 };
 use futures::future;
@@ -73,7 +73,7 @@ impl NodeState {
         config: smr_context::Config,
         initial_state: State,
         node_time: NodeTime,
-        context: &dyn SMRContext<QuorumCertificate>,
+        context: &dyn SmrContext<QuorumCertificate>,
     ) -> NodeState {
         let epoch_id = EpochId(0);
         let tracker = CommitTracker::new(epoch_id, node_time, config.target_commit_interval);
@@ -145,7 +145,7 @@ impl NodeState {
         &mut self,
         epoch_id: EpochId,
         record: Record,
-        context: &mut dyn SMRContext<QuorumCertificate>,
+        context: &mut dyn SmrContext<QuorumCertificate>,
     ) {
         if epoch_id == self.epoch_id {
             self.record_store.insert_network_record(record, context);
@@ -171,7 +171,7 @@ impl NodeState {
         &mut self,
         pacemaker_actions: PacemakerUpdateActions,
         clock: NodeTime,
-        context: &mut dyn SMRContext<QuorumCertificate>,
+        context: &mut dyn SmrContext<QuorumCertificate>,
     ) -> NodeUpdateActions {
         let mut actions = NodeUpdateActions::new();
         actions.next_scheduled_update = pacemaker_actions.next_scheduled_update;
@@ -194,7 +194,7 @@ impl NodeState {
 // -- END FILE --
 
 // -- BEGIN FILE consensus_node_impl --
-impl<Context: SMRContext<QuorumCertificate>> ConsensusNode<Context> for NodeState {
+impl<Context: SmrContext<QuorumCertificate>> ConsensusNode<Context> for NodeState {
     fn load_node(context: &mut Context, node_time: NodeTime) -> AsyncResult<Self> {
         let config = context.config().clone();
         let state = context.state();
@@ -279,7 +279,7 @@ impl<Context: SMRContext<QuorumCertificate>> ConsensusNode<Context> for NodeStat
 
 // -- BEGIN FILE process_commits --
 impl NodeState {
-    pub fn process_commits(&mut self, context: &mut dyn SMRContext<QuorumCertificate>) {
+    pub fn process_commits(&mut self, context: &mut dyn SmrContext<QuorumCertificate>) {
         // For all commits that have not been processed yet, according to the commit tracker..
         for (round, state) in self
             .record_store
