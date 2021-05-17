@@ -4,7 +4,7 @@
 use crate::{
     base_types::{Author, Duration, NodeTime, Round},
     data_writer::DataWriter,
-    ActiveRound, ConsensusNode, DataSyncNode, NodeUpdateActions,
+    ConsensusNode, DataSyncNode, NodeUpdateActions,
 };
 use futures::executor::block_on;
 use log::{debug, trace};
@@ -15,7 +15,13 @@ use std::collections::{BinaryHeap, HashSet};
 #[path = "unit_tests/simulator_tests.rs"]
 mod simulator_tests;
 
-// Simulated global clock
+// TODO: the notion of round is specific to some BFT protocols => rename and/or generalize?
+/// Trait to help visualizing rounds in a simulator.
+pub trait ActiveRound {
+    fn active_round(&self) -> Round;
+}
+
+/// Simulated global clock
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Debug)]
 pub struct GlobalTime(pub i64);
 

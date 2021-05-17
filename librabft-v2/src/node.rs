@@ -4,7 +4,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{base_types::*, pacemaker::*, record::*, record_store::*, smr_context::SMRContext};
-use bft_lib::{base_types::*, ActiveRound, AsyncResult, ConsensusNode, NodeUpdateActions};
+use bft_lib::{base_types::*, AsyncResult, ConsensusNode, NodeUpdateActions};
 use futures::future;
 use log::debug;
 use std::{
@@ -12,7 +12,7 @@ use std::{
     collections::HashMap,
 };
 
-#[cfg(test)]
+#[cfg(all(test, feature = "simulator"))]
 #[path = "unit_tests/node_tests.rs"]
 mod node_tests;
 
@@ -151,7 +151,8 @@ impl NodeState {
     }
 }
 
-impl ActiveRound for NodeState {
+#[cfg(feature = "simulator")]
+impl bft_lib::ActiveRound for NodeState {
     fn active_round(&self) -> Round {
         self.pacemaker.active_round()
     }

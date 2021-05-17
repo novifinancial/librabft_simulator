@@ -15,7 +15,7 @@ use std::{
     fmt::Debug,
 };
 
-#[cfg(test)]
+#[cfg(all(test, feature = "simulator"))]
 #[path = "unit_tests/record_store_tests.rs"]
 mod record_store_tests;
 
@@ -386,7 +386,11 @@ impl RecordStoreState {
         self.quorum_certificates.get(&qc_hash)
     }
 
-    fn compute_state(&self, block_hash: BlockHash, smr_context: &mut dyn SMRContext) -> Option<State> {
+    fn compute_state(
+        &self,
+        block_hash: BlockHash,
+        smr_context: &mut dyn SMRContext,
+    ) -> Option<State> {
         let block = self.block(block_hash).unwrap();
         let (previous_state, previous_voters, previous_author) = {
             if block.previous_quorum_certificate_hash == self.initial_hash {

@@ -1,7 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
+use crate::base_types::Author;
 use std::collections::BTreeMap;
 
 #[cfg(test)]
@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 mod configuration_tests;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
-/// Hold voting rights for a give epoch.
+/// Represent BFT permissions during an epoch.
 pub struct EpochConfiguration {
     voting_rights: BTreeMap<Author, usize>,
     total_votes: usize,
