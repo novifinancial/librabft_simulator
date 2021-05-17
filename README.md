@@ -1,3 +1,4 @@
+[![Build Status](https://github.com/novifinancial/librabft_simulator/workflows/Rust/badge.svg)](https://github.com/novifinancial/librabft_simulator/actions?query=workflow%3ARust)
 [![License](https://img.shields.io/badge/license-Apache-green.svg)](LICENSE.md)
 
 # Discrete-event simulation for BFT consensus protocols
