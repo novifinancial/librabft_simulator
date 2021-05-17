@@ -8,6 +8,9 @@ license = "Apache-2.0"
 publish = false
 edition = "2018"
 
+[features]
+simulator = []
+
 [dependencies]
 env_logger = "0.8.1"
 failure = "0.1.5"

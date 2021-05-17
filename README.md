@@ -15,7 +15,7 @@ LibraBFT report, we are providing a minimal, reference implementation of the pro
 
 Usage:
 ```
-RUST_LOG=warn cargo run --bin librabft_simulator
+RUST_LOG=warn cargo run --feature simulator --bin librabft_simulator
 ```
 
 This simulator is provided for research-purpose only and is not meant to be used in production. It will continue to evolve along with the LibraBFT whitepaper.
