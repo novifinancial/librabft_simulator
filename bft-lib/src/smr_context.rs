@@ -1,8 +1,6 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-#![allow(clippy::upper_case_acronyms)]
-
 use crate::{base_types::*, EpochConfiguration};
 
 // -- BEGIN FILE smr_apis --
@@ -64,7 +62,7 @@ pub trait Storage {
     fn state(&self) -> State;
 }
 
-pub trait SMRContext<CommitCertificate>:
+pub trait SmrContext<CommitCertificate>:
     CommandFetcher + StateComputer + StateFinalizer<CommitCertificate> + EpochReader + Storage
 {
 }

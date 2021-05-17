@@ -207,4 +207,4 @@ impl Storage for SimulatedContext {
     }
 }
 
-impl<C: CommitCertificate> SMRContext<C> for SimulatedContext {}
+impl<C: CommitCertificate> SmrContext<C> for SimulatedContext {}

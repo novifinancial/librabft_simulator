@@ -6,7 +6,7 @@ use crate::{
     pacemaker::{Pacemaker, PacemakerState},
     record::*,
 };
-use bft_lib::{base_types::*, smr_context::SMRContext, EpochConfiguration};
+use bft_lib::{base_types::*, smr_context::SmrContext, EpochConfiguration};
 use failure::{bail, ensure};
 use log::{debug, info, warn};
 use std::{
@@ -49,7 +49,7 @@ pub trait RecordStore: Debug {
         &mut self,
         author: Author,
         round: Round,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     );
     /// Fetch a command from mempool and propose a block.
     fn propose_block(
@@ -57,7 +57,7 @@ pub trait RecordStore: Debug {
         local_author: Author,
         previous_qc_hash: QuorumCertificateHash,
         clock: NodeTime,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     );
     /// Execute the command contained in a block and vote for the resulting state.
     /// Return false if the execution failed.
@@ -65,13 +65,13 @@ pub trait RecordStore: Debug {
         &mut self,
         local_author: Author,
         block_hash: BlockHash,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     ) -> bool;
     /// Try to create a QC for the last block that we have proposed.
     fn check_for_new_quorum_certificate(
         &mut self,
         local_author: Author,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     ) -> bool;
 
     /// Compute the previous round and the second previous round of a block.
@@ -89,7 +89,7 @@ pub trait RecordStore: Debug {
     fn insert_network_record(
         &mut self,
         record: Record,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     );
 }
 // -- END FILE --
@@ -397,7 +397,7 @@ impl RecordStoreState {
     fn compute_state(
         &self,
         block_hash: BlockHash,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     ) -> Option<State> {
         let block = self.block(block_hash).unwrap();
         let (previous_state, previous_voters, previous_author) = {
@@ -423,7 +423,7 @@ impl RecordStoreState {
     fn try_insert_network_record(
         &mut self,
         record: Record,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     ) -> Result<()> {
         // First, check that the record is "relevant" and that invariants of "verified records",
         // such as chaining, are respected.
@@ -601,7 +601,7 @@ impl RecordStore for RecordStoreState {
         &mut self,
         author: Author,
         round: Round,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     ) {
         self.insert_network_record(
             Record::make_timeout(
@@ -623,7 +623,7 @@ impl RecordStore for RecordStoreState {
         local_author: Author,
         previous_qc_hash: QuorumCertificateHash,
         clock: NodeTime,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     ) {
         if let Some(command) = smr_context.fetch() {
             let block = Record::make_block(
@@ -641,7 +641,7 @@ impl RecordStore for RecordStoreState {
         &mut self,
         local_author: Author,
         block_hash: BlockHash,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     ) -> bool {
         let committed_state = self.vote_committed_state(block_hash);
         match self.compute_state(block_hash, smr_context) {
@@ -664,7 +664,7 @@ impl RecordStore for RecordStoreState {
     fn check_for_new_quorum_certificate(
         &mut self,
         local_author: Author,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     ) -> bool {
         let quorum_certificate = match &self.current_election {
             ElectionState::Won { block_hash, state } => {
@@ -786,7 +786,7 @@ impl RecordStore for RecordStoreState {
     fn insert_network_record(
         &mut self,
         record: Record,
-        smr_context: &mut dyn SMRContext<QuorumCertificate>,
+        smr_context: &mut dyn SmrContext<QuorumCertificate>,
     ) {
         debug!("Inserting {:?}", record);
         match self.try_insert_network_record(record, smr_context) {

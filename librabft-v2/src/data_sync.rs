@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{node::*, record::*};
-use bft_lib::{base_types::*, smr_context::SMRContext, AsyncResult, DataSyncNode};
+use bft_lib::{base_types::*, smr_context::SmrContext, AsyncResult, DataSyncNode};
 use futures::future;
 use std::collections::BTreeSet;
 
@@ -57,7 +57,7 @@ impl NodeState {
 
 impl<Context> DataSyncNode<Context> for NodeState
 where
-    Context: SMRContext<QuorumCertificate>,
+    Context: SmrContext<QuorumCertificate>,
 {
     type Notification = DataSyncNotification;
     type Request = DataSyncRequest;
