@@ -1,11 +1,8 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    base_types::{EpochId, QuorumCertificateHash},
-    record_store::*,
-};
-use bft_lib::base_types::{Author, Duration, NodeTime, Round};
+use crate::{base_types::QuorumCertificateHash, record_store::*};
+use bft_lib::base_types::{Author, Duration, EpochId, NodeTime, Round};
 use std::{
     cmp::{max, min},
     collections::hash_map::DefaultHasher,

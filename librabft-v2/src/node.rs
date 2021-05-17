@@ -3,8 +3,11 @@
 
 #![allow(clippy::too_many_arguments)]
 
-use crate::{base_types::*, pacemaker::*, record::*, record_store::*, smr_context::SMRContext};
-use bft_lib::{base_types::*, AsyncResult, ConsensusNode, NodeUpdateActions};
+use crate::{base_types::QuorumCertificateHash, pacemaker::*, record::*, record_store::*};
+use bft_lib::{
+    base_types::*, smr_context, smr_context::SMRContext, AsyncResult, ConsensusNode,
+    NodeUpdateActions,
+};
 use futures::future;
 use log::debug;
 use std::{
@@ -67,15 +70,15 @@ impl CommitTracker {
 
 impl NodeState {
     fn new(
-        config: crate::smr_context::Config,
+        config: smr_context::Config,
         initial_state: State,
         node_time: NodeTime,
-        context: &dyn SMRContext,
+        context: &dyn SMRContext<QuorumCertificate>,
     ) -> NodeState {
         let epoch_id = EpochId(0);
         let tracker = CommitTracker::new(epoch_id, node_time, config.target_commit_interval);
         let record_store = RecordStoreState::new(
-            epoch_id.initial_hash(),
+            Self::initial_hash(epoch_id),
             initial_state.clone(),
             epoch_id,
             context.configuration(&initial_state),
@@ -97,6 +100,10 @@ impl NodeState {
             tracker,
             past_record_stores: HashMap::new(),
         }
+    }
+
+    fn initial_hash(id: EpochId) -> QuorumCertificateHash {
+        QuorumCertificateHash(id.0 as u64)
     }
 
     pub fn epoch_id(&self) -> EpochId {
@@ -138,7 +145,7 @@ impl NodeState {
         &mut self,
         epoch_id: EpochId,
         record: Record,
-        context: &mut dyn SMRContext,
+        context: &mut dyn SMRContext<QuorumCertificate>,
     ) {
         if epoch_id == self.epoch_id {
             self.record_store.insert_network_record(record, context);
@@ -164,7 +171,7 @@ impl NodeState {
         &mut self,
         pacemaker_actions: PacemakerUpdateActions,
         clock: NodeTime,
-        context: &mut dyn SMRContext,
+        context: &mut dyn SMRContext<QuorumCertificate>,
     ) -> NodeUpdateActions {
         let mut actions = NodeUpdateActions::new();
         actions.next_scheduled_update = pacemaker_actions.next_scheduled_update;
@@ -187,7 +194,7 @@ impl NodeState {
 // -- END FILE --
 
 // -- BEGIN FILE consensus_node_impl --
-impl<Context: SMRContext> ConsensusNode<Context> for NodeState {
+impl<Context: SMRContext<QuorumCertificate>> ConsensusNode<Context> for NodeState {
     fn load_node(context: &mut Context, node_time: NodeTime) -> AsyncResult<Self> {
         let config = context.config().clone();
         let state = context.state();
@@ -272,7 +279,7 @@ impl<Context: SMRContext> ConsensusNode<Context> for NodeState {
 
 // -- BEGIN FILE process_commits --
 impl NodeState {
-    pub fn process_commits(&mut self, context: &mut dyn SMRContext) {
+    pub fn process_commits(&mut self, context: &mut dyn SMRContext<QuorumCertificate>) {
         // For all commits that have not been processed yet, according to the commit tracker..
         for (round, state) in self
             .record_store
@@ -290,7 +297,7 @@ impl NodeState {
             if new_epoch_id > self.epoch_id {
                 // .. create a new record store and switch to the new epoch.
                 let new_record_store = RecordStoreState::new(
-                    new_epoch_id.initial_hash(),
+                    Self::initial_hash(new_epoch_id),
                     state.clone(),
                     new_epoch_id,
                     context.configuration(&state),

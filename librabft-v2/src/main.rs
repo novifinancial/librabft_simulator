@@ -3,9 +3,9 @@
 
 //! Main executable to run a simulation of LibraBFT v2.
 
-use bft_lib::{base_types::*, simulator};
+use bft_lib::{base_types::*, simulated_context::SimulatedContext, simulator, smr_context};
 use clap::{App, Arg};
-use librabft_v2::{data_sync::*, node::NodeState, simulated_context::SimulatedContext};
+use librabft_v2::{data_sync::*, node::NodeState};
 use log::{info, warn};
 
 fn main() {
@@ -13,7 +13,7 @@ fn main() {
 
     env_logger::init();
     let context_factory = |author, num_nodes| {
-        let config = librabft_v2::smr_context::Config {
+        let config = smr_context::Config {
             author,
             target_commit_interval: args.target_commit_interval,
             delta: args.delta,

@@ -105,6 +105,13 @@ pub struct Timeout {
 }
 // -- END FILE --
 
+#[cfg(feature = "simulator")]
+impl bft_lib::simulated_context::CommitCertificate for QuorumCertificate {
+    fn committed_state(&self) -> Option<&State> {
+        self.committed_state.as_ref()
+    }
+}
+
 impl Hash for Block {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.command.hash(state);

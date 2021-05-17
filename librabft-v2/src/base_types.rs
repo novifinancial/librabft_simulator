@@ -1,42 +1,15 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use bft_lib::base_types::Author;
-
 #[cfg(test)]
 #[path = "unit_tests/base_type_tests.rs"]
 mod base_type_tests;
-
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
-pub struct EpochId(pub usize);
 
 // The following types are simplified for simulation purposes.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
 pub struct BlockHash(pub u64);
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
 pub struct QuorumCertificateHash(pub u64);
-
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
-pub struct State(pub u64);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
-pub struct Command {
-    pub proposer: Author,
-    pub index: usize,
-}
-
-impl EpochId {
-    pub fn initial_hash(self) -> QuorumCertificateHash {
-        QuorumCertificateHash(self.0 as u64)
-    }
-
-    pub fn previous(self) -> Option<EpochId> {
-        if self.0 == 0 {
-            None
-        } else {
-            Some(EpochId(self.0))
-        }
-    }
-}
 
 pub fn is_power2_minus1(x: usize) -> bool {
     (x & (x + 1)) == 0

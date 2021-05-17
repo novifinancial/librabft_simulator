@@ -34,6 +34,14 @@ fn test_happened_before() {
     assert!(!s2.happened_just_before(&s1));
 }
 
+struct DummyCertificate;
+
+impl CommitCertificate for DummyCertificate {
+    fn committed_state(&self) -> Option<&State> {
+        None
+    }
+}
+
 #[test]
 fn test_simulated_context() {
     let mut context = SimulatedContext::new(
@@ -61,9 +69,9 @@ fn test_simulated_context() {
         .unwrap();
     assert_eq!(context.read_epoch_id(&s3), EpochId(0));
 
-    context.commit(&s1, None);
-    context.commit(&s2, None);
-    context.discard(&s3);
+    StateFinalizer::<DummyCertificate>::commit(&mut context, &s1, None);
+    StateFinalizer::<DummyCertificate>::commit(&mut context, &s2, None);
+    StateFinalizer::<DummyCertificate>::discard(&mut context, &s3);
 
     assert_eq!(
         context.last_committed_ledger_state.execution_history,

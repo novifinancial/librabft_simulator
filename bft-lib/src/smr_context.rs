@@ -3,11 +3,7 @@
 
 #![allow(clippy::upper_case_acronyms)]
 
-use crate::{
-    base_types::{Command, EpochId, State},
-    record::QuorumCertificate,
-};
-use bft_lib::{base_types::*, EpochConfiguration};
+use crate::{base_types::*, EpochConfiguration};
 
 // -- BEGIN FILE smr_apis --
 pub trait CommandFetcher {
@@ -36,9 +32,9 @@ pub trait StateComputer {
 }
 
 /// How to communicate that a state was committed or discarded.
-pub trait StateFinalizer {
+pub trait StateFinalizer<CommitCertificate> {
     /// Report that a state was committed, together with a commit certificate.
-    fn commit(&mut self, state: &State, commit_certificate: Option<&QuorumCertificate>);
+    fn commit(&mut self, state: &State, commit_certificate: Option<&CommitCertificate>);
 
     /// Report that a state was discarded.
     fn discard(&mut self, state: &State);
@@ -68,14 +64,13 @@ pub trait Storage {
     fn state(&self) -> State;
 }
 
-pub trait SMRContext:
-    CommandFetcher + StateComputer + StateFinalizer + EpochReader + Storage
+pub trait SMRContext<CommitCertificate>:
+    CommandFetcher + StateComputer + StateFinalizer<CommitCertificate> + EpochReader + Storage
 {
 }
 // -- END FILE --
 
 impl Config {
-    #[cfg(test)]
     pub fn new(author: Author) -> Config {
         Config {
             author,
