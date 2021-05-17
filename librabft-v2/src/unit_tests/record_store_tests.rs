@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::{simulated_context::SimulatedContext, smr_context::*};
+use bft_lib::{simulated_context::SimulatedContext, smr_context::*};
 
 struct SharedRecordStore {
     store: RecordStoreState,

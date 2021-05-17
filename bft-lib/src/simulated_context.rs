@@ -1,8 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{base_types::*, record::*, smr_context::*};
-use bft_lib::{base_types::*, EpochConfiguration};
+use crate::{base_types::*, smr_context::*, EpochConfiguration};
 use log::{debug, error, info};
 use std::{
     collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
@@ -133,8 +132,12 @@ impl StateComputer for SimulatedContext {
     }
 }
 
-impl StateFinalizer for SimulatedContext {
-    fn commit(&mut self, state: &State, certificate: Option<&QuorumCertificate>) {
+pub trait CommitCertificate {
+    fn committed_state(&self) -> Option<&State>;
+}
+
+impl<C: CommitCertificate> StateFinalizer<C> for SimulatedContext {
+    fn commit(&mut self, state: &State, certificate: Option<&C>) {
         info!(
             "{:?} Delivering commit for state: {:?}",
             self.config.author, state
@@ -155,7 +158,7 @@ impl StateFinalizer for SimulatedContext {
             .last_committed_ledger_state
             .happened_just_before(&ledger_state));
         if let Some(qc) = certificate {
-            if let Some(state2) = &qc.committed_state {
+            if let Some(state2) = qc.committed_state() {
                 assert_eq!(state, state2);
                 info!(
                     "{:?} Received commit certificate for state: {:?}",
@@ -204,4 +207,4 @@ impl Storage for SimulatedContext {
     }
 }
 
-impl SMRContext for SimulatedContext {}
+impl<C: CommitCertificate> SMRContext<C> for SimulatedContext {}

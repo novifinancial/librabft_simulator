@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::{simulated_context::*, smr_context::*};
+use crate::base_types::BlockHash;
+use bft_lib::{simulated_context::*, smr_context, smr_context::*};
 use futures::executor::block_on;
 use std::{
     collections::hash_map::DefaultHasher,
@@ -12,7 +13,7 @@ use std::{
 #[test]
 fn test_node() {
     let mut context = SimulatedContext::new(
-        Config::new(Author(0)),
+        smr_context::Config::new(Author(0)),
         /* num_nodes */ 1,
         /* max commands per epoch */ 2,
     );

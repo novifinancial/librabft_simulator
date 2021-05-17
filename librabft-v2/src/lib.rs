@@ -13,8 +13,3 @@ pub mod pacemaker;
 pub mod record;
 /// In-memory index of records.
 pub mod record_store;
-/// Requirements for the external modules provided by `Context`.
-pub mod smr_context;
-
-#[cfg(feature = "simulator")]
-pub mod simulated_context;

@@ -25,6 +25,27 @@ pub struct Author(pub usize);
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
 pub struct Signature(pub u64);
 
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
+pub struct EpochId(pub usize);
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
+pub struct State(pub u64);
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
+pub struct Command {
+    pub proposer: Author,
+    pub index: usize,
+}
+
+impl EpochId {
+    pub fn previous(self) -> Option<EpochId> {
+        if self.0 == 0 {
+            None
+        } else {
+            Some(EpochId(self.0))
+        }
+    }
+}
+
 impl fmt::Debug for NodeTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "@{}", self.0)
