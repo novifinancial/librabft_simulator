@@ -23,7 +23,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Round(pub usize);
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash)]
 pub struct NodeTime(pub i64);
-pub type Duration = i64;
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Default)]
+pub struct Duration(pub i64);
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
 pub struct Author(pub usize);
@@ -81,7 +82,7 @@ impl std::ops::Add<Duration> for NodeTime {
     type Output = NodeTime;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        NodeTime(self.0 + rhs)
+        NodeTime(self.0 + rhs.0)
     }
 }
 

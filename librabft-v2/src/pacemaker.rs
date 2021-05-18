@@ -90,7 +90,7 @@ impl PacemakerState {
             active_round: Round(0),
             active_leader: None,
             active_round_start_time: node_time,
-            active_round_duration: 0,
+            active_round_duration: Duration(0),
             delta,
             gamma,
             lambda,
@@ -115,7 +115,7 @@ impl PacemakerState {
             "Active round is higher than any QC round."
         );
         let n = round.0 - highest_commit_certificate_round.0;
-        ((self.delta as f64) * (n as f64).powf(self.gamma)) as Duration
+        Duration(((self.delta.0 as f64) * (n as f64).powf(self.gamma)) as i64)
     }
 }
 
@@ -189,7 +189,7 @@ impl Pacemaker for PacemakerState {
             }
         } else {
             // Otherwise, enforce frequent query-all actions if we stay too long on the same round.
-            let period = (self.lambda * self.active_round_duration as f64) as i64;
+            let period = Duration((self.lambda * self.active_round_duration.0 as f64) as i64);
             let mut query_all_deadline = latest_query_all_time + period;
             if clock >= query_all_deadline {
                 actions.should_query_all = true;
