@@ -4,7 +4,7 @@
 use crate::{
     base_types::{Author, Duration, NodeTime, Round},
     data_writer::DataWriter,
-    ConsensusNode, DataSyncNode, NodeUpdateActions,
+    interfaces::{ConsensusNode, DataSyncNode, NodeUpdateActions},
 };
 use futures::executor::block_on;
 use log::{debug, trace};

@@ -1,7 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{base_types::*, EpochConfiguration};
+use crate::{base_types::*, configuration::EpochConfiguration};
 
 // -- BEGIN FILE smr_apis --
 pub trait CommandFetcher {

@@ -3,8 +3,7 @@
 
 use crate::{
     base_types::Author,
-    simulator::{Event, GlobalTime, Simulator},
-    ActiveRound,
+    simulator::{ActiveRound, Event, GlobalTime, Simulator},
 };
 use std::{fs, path::Path};
 
