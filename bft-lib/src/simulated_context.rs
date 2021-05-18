@@ -1,7 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{base_types::*, smr_context::*, EpochConfiguration};
+use crate::{base_types::*, configuration::EpochConfiguration, smr_context::*};
 use log::{debug, error, info};
 use std::{
     collections::{hash_map::DefaultHasher, BTreeMap, HashMap},

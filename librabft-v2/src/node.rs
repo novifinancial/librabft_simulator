@@ -5,7 +5,10 @@
 
 use crate::{base_types::QuorumCertificateHash, pacemaker::*, record::*, record_store::*};
 use bft_lib::{
-    base_types::*, smr_context, smr_context::SmrContext, ConsensusNode, NodeUpdateActions,
+    base_types::*,
+    interfaces::{ConsensusNode, NodeUpdateActions},
+    smr_context,
+    smr_context::SmrContext,
 };
 use futures::future;
 use log::debug;
@@ -158,7 +161,7 @@ impl NodeState {
 }
 
 #[cfg(feature = "simulator")]
-impl bft_lib::ActiveRound for NodeState {
+impl bft_lib::simulator::ActiveRound for NodeState {
     fn active_round(&self) -> Round {
         self.pacemaker.active_round()
     }
