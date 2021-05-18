@@ -1,10 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    base_types::{Author, NodeTime},
-    AsyncResult,
-};
+use crate::base_types::{AsyncResult, Author, NodeTime};
 
 // -- BEGIN FILE node_update_actions --
 /// Actions required by `ConsensusNode::update_node`.
