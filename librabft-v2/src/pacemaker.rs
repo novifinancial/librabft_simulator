@@ -15,24 +15,24 @@ mod pacemaker_tests;
 
 // -- BEGIN FILE pacemaker_update_actions --
 #[derive(Debug)]
-pub struct PacemakerUpdateActions {
+pub(crate) struct PacemakerUpdateActions {
     /// Whether to propose a block and on top of which QC hash.
-    pub should_propose_block: Option<QuorumCertificateHash>,
+    pub(crate) should_propose_block: Option<QuorumCertificateHash>,
     /// Whether we should create a timeout object for the given round.
-    pub should_create_timeout: Option<Round>,
+    pub(crate) should_create_timeout: Option<Round>,
     /// Whether we need to send our records to a subset of nodes.
-    pub should_send: Vec<Author>,
+    pub(crate) should_send: Vec<Author>,
     /// Whether we need to broadcast data to all other nodes.
-    pub should_broadcast: bool,
+    pub(crate) should_broadcast: bool,
     /// Whether we need to request data from all other nodes.
-    pub should_query_all: bool,
+    pub(crate) should_query_all: bool,
     /// Time at which to call `update_pacemaker` again, at the latest.
-    pub next_scheduled_update: NodeTime,
+    pub(crate) next_scheduled_update: NodeTime,
 }
 // -- END FILE --
 
 // -- BEGIN FILE pacemaker --
-pub trait Pacemaker: std::fmt::Debug {
+pub(crate) trait Pacemaker: std::fmt::Debug {
     /// Update our state from the given data and return some action items.
     fn update_pacemaker(
         &mut self,
@@ -57,7 +57,7 @@ pub trait Pacemaker: std::fmt::Debug {
 
 // -- BEGIN FILE pacemaker_state --
 #[derive(Debug)]
-pub struct PacemakerState {
+pub(crate) struct PacemakerState {
     /// Active epoch.
     active_epoch: EpochId,
     /// Active round.
@@ -78,7 +78,7 @@ pub struct PacemakerState {
 // -- END FILE --
 
 impl PacemakerState {
-    pub fn new(
+    pub(crate) fn new(
         epoch_id: EpochId,
         node_time: NodeTime,
         delta: Duration,
@@ -97,7 +97,7 @@ impl PacemakerState {
         }
     }
 
-    pub fn leader(record_store: &dyn RecordStore, round: Round) -> Author {
+    pub(crate) fn leader(record_store: &dyn RecordStore, round: Round) -> Author {
         let mut hasher = DefaultHasher::new();
         round.hash(&mut hasher);
         record_store.pick_author(hasher.finish())
