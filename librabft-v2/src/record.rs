@@ -23,7 +23,7 @@ mod record_tests;
 // -- BEGIN FILE records --
 /// A record read from the network.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Hash)]
-pub enum Record {
+pub(crate) enum Record {
     /// Proposed block, containing a command, e.g. a set of Libra transactions.
     Block(Block),
     /// A single vote on a proposed block and its execution state.
@@ -35,73 +35,73 @@ pub enum Record {
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
-pub struct Block {
+pub(crate) struct Block {
     /// User-defined command to execute in the state machine.
-    pub command: Command,
+    pub(crate) command: Command,
     /// Time proposed for command execution.
-    pub time: NodeTime,
+    pub(crate) time: NodeTime,
     /// Hash of the quorum certificate of the previous block.
-    pub previous_quorum_certificate_hash: QuorumCertificateHash,
+    pub(crate) previous_quorum_certificate_hash: QuorumCertificateHash,
     /// Number used to identify repeated attempts to propose a block.
-    pub round: Round,
+    pub(crate) round: Round,
     /// Creator of the block.
-    pub author: Author,
+    pub(crate) author: Author,
     /// Signs the hash of the block, that is, all the fields above.
-    pub signature: Signature,
+    pub(crate) signature: Signature,
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
-pub struct Vote {
+pub(crate) struct Vote {
     /// The current epoch.
-    pub epoch_id: EpochId,
+    pub(crate) epoch_id: EpochId,
     /// The round of the voted block.
-    pub round: Round,
+    pub(crate) round: Round,
     /// Hash of the certified block.
-    pub certified_block_hash: BlockHash,
+    pub(crate) certified_block_hash: BlockHash,
     /// Execution state.
-    pub state: State,
+    pub(crate) state: State,
     /// Execution state of the ancestor block (if any) that will match
     /// the commit rule when a QC is formed at this round.
-    pub committed_state: Option<State>,
+    pub(crate) committed_state: Option<State>,
     /// Creator of the vote.
-    pub author: Author,
+    pub(crate) author: Author,
     /// Signs the hash of the vote, that is, all the fields above.
-    pub signature: Signature,
+    pub(crate) signature: Signature,
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
 pub struct QuorumCertificate {
     /// The current epoch.
-    pub epoch_id: EpochId,
+    pub(crate) epoch_id: EpochId,
     /// The round of the certified block.
-    pub round: Round,
+    pub(crate) round: Round,
     /// Hash of the certified block.
-    pub certified_block_hash: BlockHash,
+    pub(crate) certified_block_hash: BlockHash,
     /// Execution state
-    pub state: State,
+    pub(crate) state: State,
     /// Execution state of the ancestor block (if any) that matches
     /// the commit rule thanks to this QC.
-    pub committed_state: Option<State>,
+    pub(crate) committed_state: Option<State>,
     /// A collections of votes sharing the fields above.
-    pub votes: Vec<(Author, Signature)>,
+    pub(crate) votes: Vec<(Author, Signature)>,
     /// The leader who proposed the certified block should also sign the QC.
-    pub author: Author,
+    pub(crate) author: Author,
     /// Signs the hash of the QC, that is, all the fields above.
-    pub signature: Signature,
+    pub(crate) signature: Signature,
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
-pub struct Timeout {
+pub(crate) struct Timeout {
     /// The current epoch.
-    pub epoch_id: EpochId,
+    pub(crate) epoch_id: EpochId,
     /// The round that has timed out.
-    pub round: Round,
+    pub(crate) round: Round,
     /// Round of the highest block with a quorum certificate.
-    pub highest_certified_block_round: Round,
+    pub(crate) highest_certified_block_round: Round,
     /// Creator of the timeout object.
-    pub author: Author,
+    pub(crate) author: Author,
     /// Signs the hash of the timeout, that is, all the fields above.
-    pub signature: Signature,
+    pub(crate) signature: Signature,
 }
 // -- END FILE --
 
@@ -112,6 +112,7 @@ impl bft_lib::simulated_context::CommitCertificate for QuorumCertificate {
     }
 }
 
+// TODO: Use serde + BCS instead of Hash.
 impl Hash for Block {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.command.hash(state);
@@ -154,13 +155,13 @@ impl Hash for Timeout {
 }
 
 impl Record {
-    pub fn digest(&self) -> u64 {
+    pub(crate) fn digest(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
         hasher.finish()
     }
 
-    pub fn make_block(
+    pub(crate) fn make_block(
         command: Command,
         time: NodeTime,
         previous_quorum_certificate_hash: QuorumCertificateHash,
@@ -183,7 +184,7 @@ impl Record {
         value
     }
 
-    pub fn make_vote(
+    pub(crate) fn make_vote(
         epoch_id: EpochId,
         round: Round,
         certified_block_hash: BlockHash,
@@ -208,7 +209,7 @@ impl Record {
         value
     }
 
-    pub fn make_timeout(
+    pub(crate) fn make_timeout(
         epoch_id: EpochId,
         round: Round,
         highest_certified_block_round: Round,
@@ -229,7 +230,7 @@ impl Record {
         value
     }
 
-    pub fn make_quorum_certificate(
+    pub(crate) fn make_quorum_certificate(
         epoch_id: EpochId,
         round: Round,
         certified_block_hash: BlockHash,
@@ -257,7 +258,7 @@ impl Record {
     }
 
     #[cfg(test)]
-    pub fn author(&self) -> Author {
+    pub(crate) fn author(&self) -> Author {
         match self {
             Record::Block(x) => x.author,
             Record::Vote(x) => x.author,
@@ -267,7 +268,7 @@ impl Record {
     }
 
     #[cfg(test)]
-    pub fn signature(&self) -> Signature {
+    pub(crate) fn signature(&self) -> Signature {
         match self {
             Record::Block(x) => x.signature,
             Record::Vote(x) => x.signature,

@@ -47,7 +47,7 @@ pub struct NodeState {
 
 // -- BEGIN FILE commit_tracker --
 #[derive(Debug)]
-pub struct CommitTracker {
+struct CommitTracker {
     /// Latest epoch identifier that was processed.
     epoch_id: EpochId,
     /// Round of the latest commit that was processed.
@@ -108,19 +108,19 @@ impl NodeState {
         QuorumCertificateHash(id.0 as u64)
     }
 
-    pub fn epoch_id(&self) -> EpochId {
+    pub(crate) fn epoch_id(&self) -> EpochId {
         self.epoch_id
     }
 
-    pub fn local_author(&self) -> Author {
+    pub(crate) fn local_author(&self) -> Author {
         self.local_author
     }
 
-    pub fn record_store(&self) -> &dyn RecordStore {
+    pub(crate) fn record_store(&self) -> &dyn RecordStore {
         &self.record_store
     }
 
-    pub fn record_store_at(&self, epoch_id: EpochId) -> Option<&dyn RecordStore> {
+    pub(crate) fn record_store_at(&self, epoch_id: EpochId) -> Option<&dyn RecordStore> {
         if epoch_id == self.epoch_id {
             return Some(&self.record_store);
         }
@@ -129,11 +129,11 @@ impl NodeState {
             .map(|store| &*store as &dyn RecordStore)
     }
 
-    pub fn pacemaker(&self) -> &dyn Pacemaker {
+    pub(crate) fn pacemaker(&self) -> &dyn Pacemaker {
         &self.pacemaker
     }
 
-    pub fn update_tracker(&mut self, clock: NodeTime) {
+    pub(crate) fn update_tracker(&mut self, clock: NodeTime) {
         // Ignore actions
         self.tracker.update_tracker(
             self.latest_query_all_time,
@@ -143,7 +143,7 @@ impl NodeState {
         );
     }
 
-    pub fn insert_network_record(
+    pub(crate) fn insert_network_record(
         &mut self,
         epoch_id: EpochId,
         record: Record,
@@ -281,7 +281,7 @@ impl<Context: SmrContext<QuorumCertificate>> ConsensusNode<Context> for NodeStat
 
 // -- BEGIN FILE process_commits --
 impl NodeState {
-    pub fn process_commits(&mut self, context: &mut dyn SmrContext<QuorumCertificate>) {
+    pub(crate) fn process_commits(&mut self, context: &mut dyn SmrContext<QuorumCertificate>) {
         // For all commits that have not been processed yet, according to the commit tracker..
         for (round, state) in self
             .record_store
@@ -321,7 +321,7 @@ impl NodeState {
 
 // -- BEGIN FILE commit_tracker_impl --
 #[derive(Debug)]
-pub struct CommitTrackerUpdateActions {
+struct CommitTrackerUpdateActions {
     /// Time at which to call `update_node` again, at the latest.
     next_scheduled_update: NodeTime,
     /// Whether we need to query all other nodes.

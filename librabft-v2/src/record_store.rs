@@ -19,7 +19,7 @@ use std::{
 mod record_store_tests;
 
 // -- BEGIN FILE record_store --
-pub trait RecordStore: Debug {
+pub(crate) trait RecordStore: Debug {
     /// Return the hash of a QC at the highest round, or the initial hash.
     fn highest_quorum_certificate_hash(&self) -> QuorumCertificateHash;
     /// Query the round of the highest QC.
@@ -169,7 +169,7 @@ impl<'a> Iterator for BackwardQuorumCertificateIterator<'a> {
 }
 
 impl RecordStoreState {
-    pub fn new(
+    pub(crate) fn new(
         initial_hash: QuorumCertificateHash,
         initial_state: State,
         epoch_id: EpochId,
