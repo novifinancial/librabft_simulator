@@ -12,6 +12,11 @@ use std::{
 #[path = "unit_tests/base_type_tests.rs"]
 mod base_type_tests;
 
+// TODO: add error handling + remove Unpin
+// Alternatively, we may want to use a generic associated type when there are available on
+// rust-stable:   https://github.com/rust-lang/rust/issues/44265
+pub type AsyncResult<T> = Box<dyn std::future::Future<Output = T> + Unpin + 'static>;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]

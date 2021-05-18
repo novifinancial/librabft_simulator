@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{node::*, record::*};
-use bft_lib::{base_types::*, smr_context::SmrContext, AsyncResult, DataSyncNode};
+use bft_lib::{base_types::*, smr_context::SmrContext, DataSyncNode};
 use futures::future;
 use std::collections::BTreeSet;
 

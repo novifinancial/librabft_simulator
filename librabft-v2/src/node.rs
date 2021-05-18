@@ -5,8 +5,7 @@
 
 use crate::{base_types::QuorumCertificateHash, pacemaker::*, record::*, record_store::*};
 use bft_lib::{
-    base_types::*, smr_context, smr_context::SmrContext, AsyncResult, ConsensusNode,
-    NodeUpdateActions,
+    base_types::*, smr_context, smr_context::SmrContext, ConsensusNode, NodeUpdateActions,
 };
 use futures::future;
 use log::debug;
