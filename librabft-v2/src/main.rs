@@ -138,16 +138,14 @@ fn get_arguments() -> CliArguments {
             .unwrap()
             .parse::<usize>()
             .unwrap(),
-        target_commit_interval: matches
-            .value_of("target_commit_interval")
-            .unwrap()
-            .parse::<Duration>()
-            .unwrap(),
-        delta: matches
-            .value_of("delta")
-            .unwrap()
-            .parse::<Duration>()
-            .unwrap(),
+        target_commit_interval: Duration(
+            matches
+                .value_of("target_commit_interval")
+                .unwrap()
+                .parse::<i64>()
+                .unwrap(),
+        ),
+        delta: Duration(matches.value_of("delta").unwrap().parse::<i64>().unwrap()),
         gamma: matches.value_of("gamma").unwrap().parse::<f64>().unwrap(),
         lambda: matches.value_of("lambda").unwrap().parse::<f64>().unwrap(),
         output_data_files: matches.value_of("create_csv").map(|x| x.to_string()),

@@ -29,7 +29,7 @@ impl std::ops::Add<Duration> for GlobalTime {
     type Output = GlobalTime;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        GlobalTime(self.0 + rhs)
+        GlobalTime(self.0 + rhs.0)
     }
 }
 
@@ -155,7 +155,7 @@ where
             .map(|index| {
                 let author = Author(index);
                 let mut context = context_factory(author, num_nodes);
-                let startup_time = clock.add_delay(network_delay) + 1;
+                let startup_time = clock.add_delay(network_delay) + Duration(1);
                 let node_time = NodeTime(0);
                 let deadline = GlobalTime::from_node_time(node_time, startup_time);
                 let event = Event::UpdateTimerEvent { author };
@@ -168,7 +168,7 @@ where
                 pending_events.push(ScheduledEvent(std::cmp::Reverse(deadline), event));
                 SimulatedNode {
                     startup_time,
-                    ignore_scheduled_updates_until: startup_time + (-1),
+                    ignore_scheduled_updates_until: startup_time + Duration(-1),
                     node,
                     context,
                 }
@@ -241,10 +241,10 @@ where
                 GlobalTime::from_node_time(actions.next_scheduled_update, node.startup_time),
                 // Make sure we schedule the update strictly in the future so it does not get
                 // ignored by `ignore_scheduled_updates_until` below.
-                clock + 1,
+                clock + Duration(1),
             );
             // We don't remove the previously scheduled updates but this will cancel them.
-            node.ignore_scheduled_updates_until = new_deadline + (-1);
+            node.ignore_scheduled_updates_until = new_deadline + Duration(-1);
             new_deadline
             // scoping the mutable 'node' for the borrow checker
         };
