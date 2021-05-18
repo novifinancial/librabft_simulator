@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    base_types::{Author, Duration, NodeTime, Round},
+    base_types::{Duration, NodeTime, Round},
     data_writer::DataWriter,
     interfaces::{ConsensusNode, DataSyncNode, NodeUpdateActions},
+    simulated_context::Author,
+    smr_context::SmrContext,
 };
 use futures::executor::block_on;
 use log::{debug, trace};
@@ -106,18 +108,19 @@ pub struct SimulatedNode<Node, Context> {
 impl<Node, Context> SimulatedNode<Node, Context>
 where
     Node: ConsensusNode<Context>,
+    Context: SmrContext,
 {
-    fn update(&mut self, global_clock: GlobalTime) -> NodeUpdateActions {
+    fn update(&mut self, global_clock: GlobalTime) -> NodeUpdateActions<Context> {
         let local_clock = global_clock.to_node_time(self.startup_time);
         self.node.update_node(&mut self.context, local_clock)
     }
 }
 
-impl<Node, Context> SimulatedNode<Node, Context>
+impl<Node, Context> ActiveRound for SimulatedNode<Node, Context>
 where
     Node: ActiveRound,
 {
-    pub fn active_round(&self) -> Round {
+    fn active_round(&self) -> Round {
         self.node.active_round()
     }
 }
@@ -137,6 +140,7 @@ impl<Node, Context, Notification, Request, Response>
     Simulator<Node, Context, Notification, Request, Response>
 where
     Node: ConsensusNode<Context>,
+    Context: SmrContext,
     Notification: std::cmp::Ord + std::fmt::Debug,
     Request: std::cmp::Ord + std::fmt::Debug,
     Response: std::cmp::Ord + std::fmt::Debug,
@@ -213,7 +217,7 @@ impl<Node, Context, Notification, Request, Response>
 impl<Node, Context, Notification, Request, Response>
     Simulator<Node, Context, Notification, Request, Response>
 where
-    Context: std::fmt::Debug,
+    Context: SmrContext<Author = Author>,
     Node: ConsensusNode<Context>
         + DataSyncNode<Context, Notification = Notification, Request = Request, Response = Response>
         + ActiveRound
@@ -226,7 +230,7 @@ where
         &mut self,
         clock: GlobalTime,
         author: Author,
-        actions: NodeUpdateActions,
+        actions: NodeUpdateActions<Context>,
     ) {
         debug!(
             "@{:?} Processing node actions for {:?}: {:?}",

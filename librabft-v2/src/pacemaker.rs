@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{base_types::QuorumCertificateHash, record_store::*};
-use bft_lib::base_types::{Author, Duration, EpochId, NodeTime, Round};
-use std::{
-    cmp::{max, min},
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
+use bft_lib::{
+    base_types::{Duration, EpochId, NodeTime, Round},
+    smr_context::SmrContext,
 };
+use std::cmp::{max, min};
 
 #[cfg(test)]
 #[path = "unit_tests/pacemaker_tests.rs"]
@@ -15,13 +14,13 @@ mod pacemaker_tests;
 
 // -- BEGIN FILE pacemaker_update_actions --
 #[derive(Debug)]
-pub(crate) struct PacemakerUpdateActions {
+pub(crate) struct PacemakerUpdateActions<Context: SmrContext> {
     /// Whether to propose a block and on top of which QC hash.
-    pub(crate) should_propose_block: Option<QuorumCertificateHash>,
+    pub(crate) should_propose_block: Option<QuorumCertificateHash<Context::HashValue>>,
     /// Whether we should create a timeout object for the given round.
     pub(crate) should_create_timeout: Option<Round>,
     /// Whether we need to send our records to a subset of nodes.
-    pub(crate) should_send: Vec<Author>,
+    pub(crate) should_send: Vec<Context::Author>,
     /// Whether we need to broadcast data to all other nodes.
     pub(crate) should_broadcast: bool,
     /// Whether we need to request data from all other nodes.
@@ -32,38 +31,38 @@ pub(crate) struct PacemakerUpdateActions {
 // -- END FILE --
 
 // -- BEGIN FILE pacemaker --
-pub(crate) trait Pacemaker: std::fmt::Debug {
+pub(crate) trait Pacemaker<Context: SmrContext> {
     /// Update our state from the given data and return some action items.
     fn update_pacemaker(
         &mut self,
         // Identity of this node.
-        local_author: Author,
+        local_author: Context::Author,
         // Current epoch.
         epoch_id: EpochId,
         // Known records.
-        record_store: &dyn RecordStore,
+        record_store: &dyn RecordStore<Context>,
         // Local time of the latest query-all by us.
         latest_query_all: NodeTime,
         // Current local time.
         clock: NodeTime,
-    ) -> PacemakerUpdateActions;
+    ) -> PacemakerUpdateActions<Context>;
 
     /// Current active epoch, round, and leader.
     fn active_epoch(&self) -> EpochId;
     fn active_round(&self) -> Round;
-    fn active_leader(&self) -> Option<Author>;
+    fn active_leader(&self) -> Option<Context::Author>;
 }
 // -- END FILE --
 
 // -- BEGIN FILE pacemaker_state --
 #[derive(Debug)]
-pub(crate) struct PacemakerState {
+pub(crate) struct PacemakerState<Context: SmrContext> {
     /// Active epoch.
     active_epoch: EpochId,
     /// Active round.
     active_round: Round,
     /// Leader of the active round.
-    active_leader: Option<Author>,
+    active_leader: Option<Context::Author>,
     /// Time at which we entered the round.
     active_round_start_time: NodeTime,
     /// Maximal duration of the current round.
@@ -77,14 +76,14 @@ pub(crate) struct PacemakerState {
 }
 // -- END FILE --
 
-impl PacemakerState {
+impl<Context: SmrContext> PacemakerState<Context> {
     pub(crate) fn new(
         epoch_id: EpochId,
         node_time: NodeTime,
         delta: Duration,
         gamma: f64,
         lambda: f64,
-    ) -> PacemakerState {
+    ) -> Self {
         PacemakerState {
             active_epoch: epoch_id,
             active_round: Round(0),
@@ -97,13 +96,18 @@ impl PacemakerState {
         }
     }
 
-    pub(crate) fn leader(record_store: &dyn RecordStore, round: Round) -> Author {
+    pub(crate) fn leader(record_store: &dyn RecordStore<Context>, round: Round) -> Context::Author {
+        use std::{
+            collections::hash_map::DefaultHasher,
+            hash::{Hash, Hasher},
+        };
+
         let mut hasher = DefaultHasher::new();
         round.hash(&mut hasher);
         record_store.pick_author(hasher.finish())
     }
 
-    fn duration(&self, record_store: &dyn RecordStore, round: Round) -> Duration {
+    fn duration(&self, record_store: &dyn RecordStore<Context>, round: Round) -> Duration {
         let highest_commit_certificate_round = if record_store.highest_committed_round() > Round(0)
         {
             record_store.highest_committed_round() + 2
@@ -119,7 +123,7 @@ impl PacemakerState {
     }
 }
 
-impl Default for PacemakerUpdateActions {
+impl<Context: SmrContext> Default for PacemakerUpdateActions<Context> {
     fn default() -> Self {
         PacemakerUpdateActions {
             next_scheduled_update: NodeTime::never(),
@@ -132,16 +136,16 @@ impl Default for PacemakerUpdateActions {
     }
 }
 
-impl Pacemaker for PacemakerState {
+impl<Context: SmrContext> Pacemaker<Context> for PacemakerState<Context> {
     // -- BEGIN FILE pacemaker_impl --
     fn update_pacemaker(
         &mut self,
-        local_author: Author,
+        local_author: Context::Author,
         epoch_id: EpochId,
-        record_store: &dyn RecordStore,
+        record_store: &dyn RecordStore<Context>,
         latest_query_all_time: NodeTime,
         clock: NodeTime,
-    ) -> PacemakerUpdateActions {
+    ) -> PacemakerUpdateActions<Context> {
         // Initialize actions with default values.
         let mut actions = PacemakerUpdateActions::default();
         // Compute the active round from the current record store.
@@ -210,7 +214,7 @@ impl Pacemaker for PacemakerState {
         self.active_round
     }
 
-    fn active_leader(&self) -> Option<Author> {
+    fn active_leader(&self) -> Option<Context::Author> {
         self.active_leader
     }
 }

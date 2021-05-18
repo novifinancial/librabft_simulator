@@ -1,12 +1,9 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{ensure, Error};
-use std::{
-    collections::hash_map::DefaultHasher,
-    fmt,
-    hash::{Hash, Hasher},
-};
+use anyhow::Error;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[cfg(test)]
 #[path = "unit_tests/base_type_tests.rs"]
@@ -19,28 +16,17 @@ pub type AsyncResult<T> = Box<dyn std::future::Future<Output = T> + Unpin + 'sta
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, Debug)]
 pub struct Round(pub usize);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub struct NodeTime(pub i64);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Default)]
+#[derive(
+    Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, Debug, Default,
+)]
 pub struct Duration(pub i64);
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
-pub struct Author(pub usize);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
-pub struct Signature(pub u64);
-
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, Debug)]
 pub struct EpochId(pub usize);
-
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
-pub struct State(pub u64);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
-pub struct Command {
-    pub proposer: Author,
-    pub index: usize,
-}
 
 impl EpochId {
     pub fn previous(self) -> Option<EpochId> {
@@ -83,23 +69,6 @@ impl std::ops::Add<Duration> for NodeTime {
 
     fn add(self, rhs: Duration) -> Self::Output {
         NodeTime(self.0 + rhs.0)
-    }
-}
-
-impl Signature {
-    pub fn sign(hash: u64, author: Author) -> Self {
-        let mut hasher = DefaultHasher::new();
-        hash.hash(&mut hasher);
-        author.hash(&mut hasher);
-        Signature(hasher.finish())
-    }
-
-    pub fn check(&self, hash: u64, author: Author) -> Result<()> {
-        let mut hasher = DefaultHasher::new();
-        hash.hash(&mut hasher);
-        author.hash(&mut hasher);
-        ensure!(hasher.finish() == self.0, "Signatures must be valid.");
-        Ok(())
     }
 }
 
