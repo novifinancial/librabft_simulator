@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use bft_lib::{simulated_context::SimulatedContext, smr_context::*};
+use bft_lib::{simulated_context::*, smr_context::*};
 
 struct SharedRecordStore {
-    store: RecordStoreState,
+    store: RecordStoreState<SimulatedContext>,
     contexts: HashMap<Author, SimulatedContext>,
 }
 
@@ -41,7 +41,7 @@ impl SharedRecordStore {
     fn propose_block(
         &mut self,
         author_id: usize,
-        previous_qc_hash: QuorumCertificateHash,
+        previous_qc_hash: QuorumCertificateHash<u64>,
         clock: NodeTime,
     ) {
         let author = Author(author_id);
@@ -53,7 +53,7 @@ impl SharedRecordStore {
         );
     }
 
-    fn create_vote(&mut self, author_id: usize, block_hash: BlockHash) -> bool {
+    fn create_vote(&mut self, author_id: usize, block_hash: BlockHash<u64>) -> bool {
         let author = Author(author_id);
         self.store
             .create_vote(author, block_hash, self.contexts.get_mut(&author).unwrap())

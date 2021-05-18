@@ -6,22 +6,22 @@ use super::*;
 #[test]
 fn test_count() {
     let mut rights = BTreeMap::new();
-    rights.insert(Author(0), 1);
-    rights.insert(Author(1), 2);
-    rights.insert(Author(2), 3);
+    rights.insert("0", 1);
+    rights.insert("1", 2);
+    rights.insert("2", 3);
     let config = EpochConfiguration::new(rights);
     assert_eq!(config.total_votes, 6);
 
-    assert_eq!(config.count_votes(vec![&Author(1)]), 2);
-    assert_eq!(config.count_votes(vec![&Author(4)]), 0);
+    assert_eq!(config.count_votes(vec![&"1"]), 2);
+    assert_eq!(config.count_votes(vec![&"4"]), 0);
 }
 
 #[test]
 fn test_pick_author() {
     let mut rights = BTreeMap::new();
-    rights.insert(Author(0), 1);
-    rights.insert(Author(1), 2);
-    rights.insert(Author(2), 5);
+    rights.insert("0", 1);
+    rights.insert("1", 2);
+    rights.insert("2", 5);
     let config = EpochConfiguration::new(rights);
 
     let mut hits = BTreeMap::new();
@@ -34,10 +34,10 @@ fn test_pick_author() {
     assert_eq!(vec![1, 2, 5], results);
 }
 
-fn equal_configuration(num_nodes: usize) -> EpochConfiguration {
+fn equal_configuration(num_nodes: usize) -> EpochConfiguration<usize> {
     let mut voting_rights = BTreeMap::new();
     for index in 0..num_nodes {
-        voting_rights.insert(Author(index), 1);
+        voting_rights.insert(index, 1);
     }
     EpochConfiguration::new(voting_rights)
 }

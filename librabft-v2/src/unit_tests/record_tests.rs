@@ -2,10 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use bft_lib::{
+    simulated_context::*,
+    smr_context::{Config, CryptographicModule},
+};
 
 #[test]
 fn test_block_signing() {
+    let mut context = SimulatedContext::new(
+        Config::new(Author(2)),
+        /* not used */ 0,
+        /* not used */ 0,
+    );
     let b = Record::make_block(
+        &mut context,
         Command {
             proposer: Author(1),
             index: 2,
@@ -15,9 +25,16 @@ fn test_block_signing() {
         Round(3),
         Author(2),
     );
-    assert!(b.signature().check(b.digest(), b.author()).is_ok());
-    assert!(b.signature().check(b.digest(), Author(1)).is_err());
+    let hash = context.hash(&b);
+    assert!(context.verify(b.author(), hash, b.signature()).is_ok());
+    assert!(context.verify(Author(1), hash, b.signature()).is_err());
+    let mut context = SimulatedContext::new(
+        Config::new(Author(2)),
+        /* not used */ 0,
+        /* not used */ 0,
+    );
     let b2 = Record::make_block(
+        &mut context,
         Command {
             proposer: Author(3),
             index: 2,
@@ -27,5 +44,6 @@ fn test_block_signing() {
         Round(3),
         Author(2),
     );
-    assert!(b.signature().check(b2.digest(), b.author()).is_err());
+    let hash = context.hash(&b2);
+    assert!(context.verify(b.author(), hash, b.signature()).is_err());
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    base_types::Author,
+    simulated_context::Author,
     simulator::{ActiveRound, Event, GlobalTime, Simulator},
 };
 use std::{fs, path::Path};

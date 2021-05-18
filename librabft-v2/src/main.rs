@@ -24,11 +24,11 @@ fn main() {
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
     let mut sim = simulator::Simulator::<
-        NodeState,
+        NodeState<SimulatedContext>,
         SimulatedContext,
-        DataSyncNotification,
+        DataSyncNotification<SimulatedContext>,
         DataSyncRequest,
-        DataSyncResponse,
+        DataSyncResponse<SimulatedContext>,
     >::new(args.nodes, delay_distribution, context_factory);
     let contexts = sim.loop_until(
         simulator::GlobalTime(args.max_clock),

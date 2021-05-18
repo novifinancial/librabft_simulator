@@ -1,15 +1,17 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
+use serde::{Deserialize, Serialize};
+
 #[cfg(test)]
 #[path = "unit_tests/base_type_tests.rs"]
 mod base_type_tests;
 
 // The following types are simplified for simulation purposes.
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
-pub(crate) struct BlockHash(pub u64);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
-pub(crate) struct QuorumCertificateHash(pub u64);
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+pub(crate) struct BlockHash<V>(pub V);
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+pub(crate) struct QuorumCertificateHash<V>(pub V);
 
 pub(crate) fn is_power2_minus1(x: usize) -> bool {
     (x & (x + 1)) == 0
