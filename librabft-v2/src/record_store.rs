@@ -6,8 +6,8 @@ use crate::{
     pacemaker::{Pacemaker, PacemakerState},
     record::*,
 };
+use anyhow::{bail, ensure};
 use bft_lib::{base_types::*, configuration::EpochConfiguration, smr_context::SmrContext};
-use failure::{bail, ensure};
 use log::{debug, info, warn};
 use std::{
     collections::{BTreeSet, HashMap},

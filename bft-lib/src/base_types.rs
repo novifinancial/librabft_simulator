@@ -1,7 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use failure::{ensure, Error};
+use anyhow::{ensure, Error};
 use std::{
     collections::hash_map::DefaultHasher,
     fmt,
@@ -12,7 +12,7 @@ use std::{
 #[path = "unit_tests/base_type_tests.rs"]
 mod base_type_tests;
 
-// TODO: add error handling + remove Unpin
+// TODO: add error handling (using thiserror to define an error type?) + remove Unpin
 // Alternatively, we may want to use a generic associated type when there are available on
 // rust-stable:   https://github.com/rust-lang/rust/issues/44265
 pub type AsyncResult<T> = Box<dyn std::future::Future<Output = T> + Unpin + 'static>;
