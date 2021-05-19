@@ -52,29 +52,23 @@ pub(crate) trait RecordStore<Context: SmrContext> {
     fn has_timeout(&self, author: Context::Author, round: Round) -> bool;
 
     /// Create a timeout.
-    fn create_timeout(&mut self, author: Context::Author, round: Round, smr_context: &mut Context);
+    fn create_timeout(&mut self, author: Context::Author, round: Round, context: &mut Context);
     /// Fetch a command from mempool and propose a block.
     fn propose_block(
         &mut self,
-        local_author: Context::Author,
+        context: &mut Context,
         previous_qc_hash: QuorumCertificateHash<Context::HashValue>,
         clock: NodeTime,
-        smr_context: &mut Context,
     );
     /// Execute the command contained in a block and vote for the resulting state.
     /// Return false if the execution failed.
     fn create_vote(
         &mut self,
-        local_author: Context::Author,
+        context: &mut Context,
         block_hash: BlockHash<Context::HashValue>,
-        smr_context: &mut Context,
     ) -> bool;
     /// Try to create a QC for the last block that we have proposed.
-    fn check_for_new_quorum_certificate(
-        &mut self,
-        local_author: Context::Author,
-        smr_context: &mut Context,
-    ) -> bool;
+    fn check_for_new_quorum_certificate(&mut self, context: &mut Context) -> bool;
 
     /// Compute the previous round and the second previous round of a block.
     fn previous_round(&self, block_hash: BlockHash<Context::HashValue>) -> Round;
@@ -88,7 +82,7 @@ pub(crate) trait RecordStore<Context: SmrContext> {
     fn block(&self, block_hash: BlockHash<Context::HashValue>) -> Option<&Block<Context>>;
     fn known_quorum_certificate_rounds(&self) -> BTreeSet<Round>;
     fn unknown_records(&self, known_qc_rounds: BTreeSet<Round>) -> Vec<Record<Context>>;
-    fn insert_network_record(&mut self, record: Record<Context>, smr_context: &mut Context);
+    fn insert_network_record(&mut self, record: Record<Context>, context: &mut Context);
 }
 // -- END FILE --
 
@@ -428,7 +422,7 @@ impl<Context: SmrContext> RecordStoreState<Context> {
     fn compute_state(
         &self,
         block_hash: BlockHash<Context::HashValue>,
-        smr_context: &mut Context,
+        context: &mut Context,
     ) -> Option<Context::State> {
         let block = self.block(block_hash).unwrap();
         let (previous_state, previous_voters, previous_author) = {
@@ -446,7 +440,7 @@ impl<Context: SmrContext> RecordStoreState<Context> {
                 )
             }
         };
-        smr_context.compute(
+        context.compute(
             previous_state,
             block.value.command.clone(),
             block.value.time,
@@ -458,11 +452,11 @@ impl<Context: SmrContext> RecordStoreState<Context> {
     fn try_insert_network_record(
         &mut self,
         record: Record<Context>,
-        smr_context: &mut Context,
+        context: &mut Context,
     ) -> Result<()> {
         // First, check that the record is "relevant" and that invariants of "verified records",
         // such as chaining, are respected.
-        let hash = self.verify_network_record(&*smr_context, &record)?;
+        let hash = self.verify_network_record(&*context, &record)?;
         // Second, insert the record. In the case of QC, this is where check execution states.
         match record {
             Record::Block(block) => {
@@ -506,7 +500,7 @@ impl<Context: SmrContext> RecordStoreState<Context> {
                 let qc_state = qc.value.state.clone();
                 self.quorum_certificates.insert(qc_hash, qc);
                 // Make sure that the state in the QC is known to execution.
-                match self.compute_state(block_hash, smr_context) {
+                match self.compute_state(block_hash, context) {
                     Some(state) => {
                         ensure!(
                             state == qc_state,
@@ -635,10 +629,10 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
         }
     }
 
-    fn create_timeout(&mut self, author: Context::Author, round: Round, smr_context: &mut Context) {
+    fn create_timeout(&mut self, author: Context::Author, round: Round, context: &mut Context) {
         self.insert_network_record(
             Record::Timeout(SignedValue::make(
-                smr_context,
+                context,
                 Timeout_ {
                     epoch_id: self.epoch_id,
                     round,
@@ -646,7 +640,7 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
                     author,
                 },
             )),
-            smr_context,
+            context,
         );
     }
 
@@ -656,61 +650,55 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
 
     fn propose_block(
         &mut self,
-        local_author: Context::Author,
+        context: &mut Context,
         previous_quorum_certificate_hash: QuorumCertificateHash<Context::HashValue>,
         time: NodeTime,
-        smr_context: &mut Context,
     ) {
-        if let Some(command) = smr_context.fetch() {
+        if let Some(command) = context.fetch() {
             let block = Record::Block(SignedValue::make(
-                smr_context,
+                context,
                 Block_ {
                     command,
                     time,
                     previous_quorum_certificate_hash,
                     round: self.current_round,
-                    author: local_author,
+                    author: context.author(),
                 },
             ));
-            self.insert_network_record(block, smr_context)
+            self.insert_network_record(block, context)
         }
     }
 
     fn create_vote(
         &mut self,
-        local_author: Context::Author,
+        context: &mut Context,
         certified_block_hash: BlockHash<Context::HashValue>,
-        smr_context: &mut Context,
     ) -> bool {
         let committed_state = self.vote_committed_state(certified_block_hash);
-        match self.compute_state(certified_block_hash, smr_context) {
+        match self.compute_state(certified_block_hash, context) {
             Some(state) => {
                 let vote = Record::Vote(SignedValue::make(
-                    smr_context,
+                    context,
                     Vote_ {
                         epoch_id: self.epoch_id,
                         round: self.block(certified_block_hash).unwrap().value.round,
                         certified_block_hash,
                         state,
-                        author: local_author,
+                        author: context.author(),
                         committed_state,
                     },
                 ));
-                self.insert_network_record(vote, smr_context);
+                self.insert_network_record(vote, context);
                 true
             }
             None => false,
         }
     }
 
-    fn check_for_new_quorum_certificate(
-        &mut self,
-        local_author: Context::Author,
-        smr_context: &mut Context,
-    ) -> bool {
+    fn check_for_new_quorum_certificate(&mut self, context: &mut Context) -> bool {
         match &self.current_election {
             ElectionState::Won { block_hash, state } => {
-                if self.block(*block_hash).unwrap().value.author != local_author {
+                if self.block(*block_hash).unwrap().value.author != context.author() {
                     return false;
                 }
                 let committed_state = self.vote_committed_state(*block_hash);
@@ -726,7 +714,7 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
                     })
                     .collect();
                 let quorum_certificate = Record::QuorumCertificate(SignedValue::make(
-                    smr_context,
+                    context,
                     QuorumCertificate_ {
                         epoch_id: self.epoch_id,
                         round: self.current_round,
@@ -734,11 +722,11 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
                         state: state.clone(),
                         votes: authors_and_signatures,
                         committed_state,
-                        author: local_author,
+                        author: context.author(),
                     },
                 ));
                 self.current_election = ElectionState::Closed;
-                self.insert_network_record(quorum_certificate, smr_context);
+                self.insert_network_record(quorum_certificate, context);
                 true
             }
             _ => false,
@@ -826,9 +814,9 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
         result
     }
 
-    fn insert_network_record(&mut self, record: Record<Context>, smr_context: &mut Context) {
+    fn insert_network_record(&mut self, record: Record<Context>, context: &mut Context) {
         debug!("Inserting {:?}", record);
-        match self.try_insert_network_record(record, smr_context) {
+        match self.try_insert_network_record(record, context) {
             Err(err) => {
                 debug!("=> Skipped: {}", err);
             }
