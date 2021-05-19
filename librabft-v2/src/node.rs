@@ -192,7 +192,7 @@ impl<Context: SmrContext> NodeState<Context> {
         }
         if let Some(previous_qc_hash) = pacemaker_actions.should_propose_block {
             self.record_store
-                .propose_block(self.local_author, previous_qc_hash, clock, context);
+                .propose_block(context, previous_qc_hash, clock);
         }
         actions
     }
@@ -247,20 +247,14 @@ where
                     self.record_store.second_previous_round(block_hash),
                 );
                 // Try to execute the command contained the a block and create a vote.
-                if self
-                    .record_store
-                    .create_vote(self.local_author, block_hash, context)
-                {
+                if self.record_store.create_vote(context, block_hash) {
                     // Ask to notify and send our vote to the author of the block.
                     actions.should_send = vec![proposer];
                 }
             }
         }
         // Check if our last proposal has reached a quorum of votes and create a QC.
-        if self
-            .record_store
-            .check_for_new_quorum_certificate(self.local_author, context)
-        {
+        if self.record_store.check_for_new_quorum_certificate(context) {
             // Broadcast the QC to finish our work as a leader.
             actions.should_broadcast = true;
             // Schedule a new run now to process the new QC.

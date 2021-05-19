@@ -46,23 +46,22 @@ impl SharedRecordStore {
     ) {
         let author = Author(author_id);
         self.store.propose_block(
-            author,
+            self.contexts.get_mut(&author).unwrap(),
             previous_qc_hash,
             clock,
-            self.contexts.get_mut(&author).unwrap(),
         );
     }
 
     fn create_vote(&mut self, author_id: usize, block_hash: BlockHash<u64>) -> bool {
         let author = Author(author_id);
         self.store
-            .create_vote(author, block_hash, self.contexts.get_mut(&author).unwrap())
+            .create_vote(self.contexts.get_mut(&author).unwrap(), block_hash)
     }
 
     fn check_for_new_quorum_certificate(&mut self) -> bool {
         let author = self.leader(self.store.current_round());
         self.store
-            .check_for_new_quorum_certificate(author, self.contexts.get_mut(&author).unwrap())
+            .check_for_new_quorum_certificate(self.contexts.get_mut(&author).unwrap())
     }
 
     fn leader(&self, round: Round) -> Author {
@@ -73,10 +72,9 @@ impl SharedRecordStore {
         let author = self.leader(self.store.current_round());
         let previous_qc_hash = self.store.highest_quorum_certificate_hash();
         self.store.propose_block(
-            author,
+            self.contexts.get_mut(&author).unwrap(),
             previous_qc_hash,
             clock,
-            self.contexts.get_mut(&author).unwrap(),
         );
         let proposed_hash = self.store.current_proposed_block.unwrap();
         let threshold = self
