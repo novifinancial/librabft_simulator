@@ -31,8 +31,23 @@ pub(crate) enum Record<Context: SmrContext> {
     Timeout(Timeout<Context>),
 }
 
+pub trait Authored<A> {
+    fn author(&self) -> A;
+}
+
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct Block<Context: SmrContext> {
+pub struct SignedValue<Context: SmrContext, T> {
+    pub(crate) value: T,
+    pub(crate) signature: Context::Signature,
+}
+
+pub(crate) type Block<C> = SignedValue<C, Block_<C>>;
+pub(crate) type Vote<C> = SignedValue<C, Vote_<C>>;
+pub(crate) type QuorumCertificate<C> = SignedValue<C, QuorumCertificate_<C>>;
+pub(crate) type Timeout<C> = SignedValue<C, Timeout_<C>>;
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct Block_<Context: SmrContext> {
     /// User-defined command to execute in the state machine.
     pub(crate) command: Context::Command,
     /// Time proposed for command execution.
@@ -43,15 +58,10 @@ pub(crate) struct Block<Context: SmrContext> {
     pub(crate) round: Round,
     /// Creator of the block.
     pub(crate) author: Context::Author,
-    /// Signs the hash of the block, that is, all the fields above.
-    #[serde(skip)]
-    // FIX ME: Here and below we use serde traits for hashing/signing. Because we skip this field,
-    // data are no longer serializable for networking purpose.
-    pub(crate) signature: Context::Signature,
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct Vote<Context: SmrContext> {
+pub(crate) struct Vote_<Context: SmrContext> {
     /// The current epoch.
     pub(crate) epoch_id: EpochId,
     /// The round of the voted block.
@@ -65,13 +75,10 @@ pub(crate) struct Vote<Context: SmrContext> {
     pub(crate) committed_state: Option<Context::State>,
     /// Creator of the vote.
     pub(crate) author: Context::Author,
-    /// Signs the hash of the vote, that is, all the fields above.
-    #[serde(skip)]
-    pub(crate) signature: Context::Signature,
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
-pub struct QuorumCertificate<Context: SmrContext> {
+pub struct QuorumCertificate_<Context: SmrContext> {
     /// The current epoch.
     pub(crate) epoch_id: EpochId,
     /// The round of the certified block.
@@ -87,13 +94,10 @@ pub struct QuorumCertificate<Context: SmrContext> {
     pub(crate) votes: Vec<(Context::Author, Context::Signature)>,
     /// The leader who proposed the certified block should also sign the QC.
     pub(crate) author: Context::Author,
-    /// Signs the hash of the QC, that is, all the fields above.
-    #[serde(skip)]
-    pub(crate) signature: Context::Signature,
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct Timeout<Context: SmrContext> {
+pub(crate) struct Timeout_<Context: SmrContext> {
     /// The current epoch.
     pub(crate) epoch_id: EpochId,
     /// The round that has timed out.
@@ -102,146 +106,61 @@ pub(crate) struct Timeout<Context: SmrContext> {
     pub(crate) highest_certified_block_round: Round,
     /// Creator of the timeout object.
     pub(crate) author: Context::Author,
-    /// Signs the hash of the timeout, that is, all the fields above.
-    #[serde(skip)]
-    pub(crate) signature: Context::Signature,
 }
 // -- END FILE --
+
+impl<C: SmrContext, T> AsRef<T> for SignedValue<C, T> {
+    fn as_ref(&self) -> &T {
+        &self.value
+    }
+}
+
+impl<
+        Context: SmrContext,
+        T: Authored<Context::Author> + serde::Serialize + serde::de::DeserializeOwned,
+    > SignedValue<Context, T>
+{
+    pub fn make(context: &mut Context, value: T) -> Self {
+        assert_eq!(value.author(), context.author());
+        let h = context.hash(&value);
+        let signature = context.sign(h).expect("Signing should not fail");
+        SignedValue { value, signature }
+    }
+
+    pub fn verify(&self, context: &Context) -> Result<()> {
+        let h = context.hash(&self.value);
+        context.verify(self.value.author(), h, self.signature)
+    }
+}
 
 impl<Context: SmrContext> bft_lib::smr_context::CommitCertificate<Context::State>
     for QuorumCertificate<Context>
 {
     fn committed_state(&self) -> Option<&Context::State> {
-        self.committed_state.as_ref()
+        self.value.committed_state.as_ref()
     }
 }
 
-impl<Context: SmrContext> Record<Context> {
-    pub(crate) fn make_block(
-        context: &mut Context,
-        command: Context::Command,
-        time: NodeTime,
-        previous_quorum_certificate_hash: QuorumCertificateHash<Context::HashValue>,
-        round: Round,
-        author: Context::Author,
-    ) -> Record<Context> {
-        let mut value = Record::Block(Block {
-            command,
-            time,
-            previous_quorum_certificate_hash,
-            round,
-            author,
-            signature: Context::Signature::default(),
-        });
-        assert_eq!(&author, context.author());
-        let h = context.hash(&value);
-        let s = context.sign(h).expect("Signing should not fail");
-        match &mut value {
-            Record::Block(block) => block.signature = s,
-            _ => unreachable!(),
-        }
-        value
+impl<Context: SmrContext> Authored<Context::Author> for Block_<Context> {
+    fn author(&self) -> Context::Author {
+        self.author
     }
+}
 
-    pub(crate) fn make_vote(
-        context: &mut Context,
-        epoch_id: EpochId,
-        round: Round,
-        certified_block_hash: BlockHash<Context::HashValue>,
-        state: Context::State,
-        author: Context::Author,
-        committed_state: Option<Context::State>,
-    ) -> Record<Context> {
-        let mut value = Record::Vote(Vote {
-            epoch_id,
-            round,
-            certified_block_hash,
-            state,
-            author,
-            signature: Context::Signature::default(),
-            committed_state,
-        });
-        assert_eq!(&author, context.author());
-        let h = context.hash(&value);
-        let s = context.sign(h).expect("Signing should not fail");
-        match &mut value {
-            Record::Vote(vote) => vote.signature = s,
-            _ => unreachable!(),
-        }
-        value
+impl<Context: SmrContext> Authored<Context::Author> for Vote_<Context> {
+    fn author(&self) -> Context::Author {
+        self.author
     }
+}
 
-    pub(crate) fn make_timeout(
-        context: &mut Context,
-        epoch_id: EpochId,
-        round: Round,
-        highest_certified_block_round: Round,
-        author: Context::Author,
-    ) -> Record<Context> {
-        let mut value = Record::Timeout(Timeout {
-            epoch_id,
-            round,
-            highest_certified_block_round,
-            author,
-            signature: Context::Signature::default(),
-        });
-        assert_eq!(&author, context.author());
-        let h = context.hash(&value);
-        let s = context.sign(h).expect("Signing should not fail");
-        match &mut value {
-            Record::Timeout(timeout) => timeout.signature = s,
-            _ => unreachable!(),
-        }
-        value
+impl<Context: SmrContext> Authored<Context::Author> for QuorumCertificate_<Context> {
+    fn author(&self) -> Context::Author {
+        self.author
     }
+}
 
-    pub(crate) fn make_quorum_certificate(
-        context: &mut Context,
-        epoch_id: EpochId,
-        round: Round,
-        certified_block_hash: BlockHash<Context::HashValue>,
-        state: Context::State,
-        votes: Vec<(Context::Author, Context::Signature)>,
-        committed_state: Option<Context::State>,
-        author: Context::Author,
-    ) -> Record<Context> {
-        let mut value = Record::QuorumCertificate(QuorumCertificate {
-            epoch_id,
-            round,
-            certified_block_hash,
-            state,
-            votes,
-            committed_state,
-            author,
-            signature: Context::Signature::default(),
-        });
-        assert_eq!(&author, context.author());
-        let h = context.hash(&value);
-        let s = context.sign(h).expect("Signing should not fail");
-        match &mut value {
-            Record::QuorumCertificate(qc) => qc.signature = s,
-            _ => unreachable!(),
-        }
-        value
-    }
-
-    #[cfg(all(test, feature = "simulator"))]
-    pub(crate) fn author(&self) -> Context::Author {
-        match self {
-            Record::Block(x) => x.author,
-            Record::Vote(x) => x.author,
-            Record::QuorumCertificate(x) => x.author,
-            Record::Timeout(x) => x.author,
-        }
-    }
-
-    #[cfg(all(test, feature = "simulator"))]
-    pub(crate) fn signature(&self) -> Context::Signature {
-        match self {
-            Record::Block(x) => x.signature,
-            Record::Vote(x) => x.signature,
-            Record::QuorumCertificate(x) => x.signature,
-            Record::Timeout(x) => x.signature,
-        }
+impl<Context: SmrContext> Authored<Context::Author> for Timeout_<Context> {
+    fn author(&self) -> Context::Author {
+        self.author
     }
 }

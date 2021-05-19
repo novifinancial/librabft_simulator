@@ -253,12 +253,16 @@ fn test_commit() {
     assert_eq!(store.current_round(), Round(7));
     assert_eq!(store.current_timeouts.len(), 0);
 
-    assert_eq!(store.highest_commit_certificate().unwrap().round, Round(5));
+    assert_eq!(
+        store.highest_commit_certificate().unwrap().value.round,
+        Round(5)
+    );
     assert_eq!(
         store.previous_round(
             store
                 .highest_commit_certificate()
                 .unwrap()
+                .value
                 .certified_block_hash
         ),
         Round(4)
@@ -268,6 +272,7 @@ fn test_commit() {
             store
                 .highest_commit_certificate()
                 .unwrap()
+                .value
                 .certified_block_hash
         ),
         Round(3)
@@ -282,6 +287,7 @@ fn test_commit() {
         store
             .highest_commit_certificate()
             .unwrap()
+            .value
             .committed_state
             .as_ref()
     );

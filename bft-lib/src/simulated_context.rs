@@ -273,8 +273,8 @@ impl CryptographicModule for SimulatedContext {
         Ok(())
     }
 
-    fn author(&self) -> &Self::Author {
-        &self.config.author
+    fn author(&self) -> Self::Author {
+        self.config.author
     }
 
     fn sign(&mut self, hash: Self::HashValue) -> Result<Self::Signature> {
