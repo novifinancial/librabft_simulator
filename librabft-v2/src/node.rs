@@ -3,7 +3,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
-use crate::{base_types::QuorumCertificateHash, pacemaker::*, record::*, record_store::*};
+use crate::{pacemaker::*, record::*, record_store::*};
 use bft_lib::{
     base_types::*,
     interfaces::{ConsensusNode, NodeUpdateActions},

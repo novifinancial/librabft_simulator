@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    base_types::*,
     pacemaker::{Pacemaker, PacemakerState},
     record::*,
 };
@@ -768,14 +767,26 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
         for n in self
             .ancestor_rounds(highest_qc_hash)
             .enumerate()
-            .filter_map(|(i, x)| if is_power2_minus1(i) { Some(x) } else { None })
+            .filter_map(|(i, x)| {
+                if crate::util::is_power2_minus1(i) {
+                    Some(x)
+                } else {
+                    None
+                }
+            })
         {
             result.insert(n);
         }
         for n in self
             .ancestor_rounds(highest_cc_hash)
             .enumerate()
-            .filter_map(|(i, x)| if is_power2_minus1(i) { Some(x) } else { None })
+            .filter_map(|(i, x)| {
+                if crate::util::is_power2_minus1(i) {
+                    Some(x)
+                } else {
+                    None
+                }
+            })
         {
             result.insert(n);
         }
@@ -793,7 +804,7 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
         let chain2: Vec<_> = BackwardQuorumCertificateIterator::new(self, highest_cc_hash)
             .take_while(|qc| !known_qc_rounds.contains(&qc.value.round))
             .collect();
-        let qcs = merge_sort(chain1.into_iter(), chain2.into_iter(), |qc1, qc2| {
+        let qcs = crate::util::merge_sort(chain1.into_iter(), chain2.into_iter(), |qc1, qc2| {
             qc2.value.round.cmp(&qc1.value.round)
         });
         let mut result = Vec::new();

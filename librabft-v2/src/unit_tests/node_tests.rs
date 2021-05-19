@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::base_types::BlockHash;
+use crate::record::BlockHash;
 use bft_lib::{simulated_context::*, smr_context, smr_context::*};
 use futures::executor::block_on;
 
