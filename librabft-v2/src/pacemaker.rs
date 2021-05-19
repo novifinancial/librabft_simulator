@@ -1,7 +1,7 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{base_types::QuorumCertificateHash, record_store::*};
+use crate::{record::QuorumCertificateHash, record_store::*};
 use bft_lib::{
     base_types::{Duration, EpochId, NodeTime, Round},
     smr_context::SmrContext,

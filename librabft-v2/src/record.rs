@@ -1,7 +1,6 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::*;
 use bft_lib::{
     base_types::*,
     smr_context::{Authored, BcsSignable, CryptographicModule, SignedValue, SmrContext},
@@ -38,6 +37,12 @@ pub(crate) type QuorumCertificate<C> =
     SignedValue<QuorumCertificate_<C>, <C as CryptographicModule>::Signature>;
 
 pub(crate) type Timeout<C> = SignedValue<Timeout_<C>, <C as CryptographicModule>::Signature>;
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+pub(crate) struct BlockHash<V>(pub V);
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+pub(crate) struct QuorumCertificateHash<V>(pub V);
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Block_<Context: SmrContext> {
