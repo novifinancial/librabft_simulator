@@ -126,8 +126,6 @@ pub trait CryptographicModule {
         + Debug
         + Clone
         + Copy
-        + /* hack: see TODO in record.rs */
-        Default
         + PartialEq
         + Eq
         + PartialOrd
@@ -157,7 +155,7 @@ pub trait CryptographicModule {
     ) -> Result<()>;
 
     /// The public key of this node.
-    fn author(&self) -> &Self::Author;
+    fn author(&self) -> Self::Author;
 
     /// Sign a message using the private key of this node.
     // TODO: make async to enable HSM implementations.

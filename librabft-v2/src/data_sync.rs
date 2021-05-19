@@ -109,26 +109,26 @@ impl<Context: SmrContext> DataSyncNode<Context> for NodeState<Context> {
         if let Some(highest_commit_certificate) = &notification.highest_commit_certificate {
             // Try to insert the QC just in case.
             self.insert_network_record(
-                highest_commit_certificate.epoch_id,
+                highest_commit_certificate.value.epoch_id,
                 Record::QuorumCertificate(highest_commit_certificate.clone()),
                 smr_context,
             );
-            should_sync |= (highest_commit_certificate.epoch_id > self.epoch_id())
-                || (highest_commit_certificate.epoch_id == self.epoch_id()
-                    && highest_commit_certificate.round
+            should_sync |= (highest_commit_certificate.value.epoch_id > self.epoch_id())
+                || (highest_commit_certificate.value.epoch_id == self.epoch_id()
+                    && highest_commit_certificate.value.round
                         > self.record_store().highest_committed_round() + 2);
         }
         if let Some(highest_quorum_certificate) = &notification.highest_quorum_certificate {
             // Try to insert the QC.
             self.insert_network_record(
-                highest_quorum_certificate.epoch_id,
+                highest_quorum_certificate.value.epoch_id,
                 Record::QuorumCertificate(highest_quorum_certificate.clone()),
                 smr_context,
             );
             // Check if we should request more data.
-            should_sync |= (highest_quorum_certificate.epoch_id > self.epoch_id())
-                || (highest_quorum_certificate.epoch_id == self.epoch_id()
-                    && highest_quorum_certificate.round
+            should_sync |= (highest_quorum_certificate.value.epoch_id > self.epoch_id())
+                || (highest_quorum_certificate.value.epoch_id == self.epoch_id()
+                    && highest_quorum_certificate.value.round
                         > self.record_store().highest_quorum_certificate_round());
         }
         // Try to insert the proposed block right away.

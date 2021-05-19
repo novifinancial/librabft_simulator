@@ -14,36 +14,39 @@ fn test_block_signing() {
         /* not used */ 0,
         /* not used */ 0,
     );
-    let b = Record::make_block(
+    let b = SignedValue::make(
         &mut context,
-        Command {
-            proposer: Author(1),
-            index: 2,
+        Block_::<SimulatedContext> {
+            command: Command {
+                proposer: Author(1),
+                index: 2,
+            },
+            time: NodeTime(2),
+            previous_quorum_certificate_hash: QuorumCertificateHash(47),
+            round: Round(3),
+            author: Author(2),
         },
-        NodeTime(2),
-        QuorumCertificateHash(47),
-        Round(3),
-        Author(2),
     );
-    let hash = context.hash(&b);
-    assert!(context.verify(b.author(), hash, b.signature()).is_ok());
-    assert!(context.verify(Author(1), hash, b.signature()).is_err());
-    let mut context = SimulatedContext::new(
-        Config::new(Author(2)),
-        /* not used */ 0,
-        /* not used */ 0,
-    );
-    let b2 = Record::make_block(
+    assert!(b.verify(&context).is_ok());
+    assert!(context
+        .verify(Author(1), context.hash(&b.value), b.signature)
+        .is_err());
+
+    let b2 = SignedValue::make(
         &mut context,
-        Command {
-            proposer: Author(3),
-            index: 2,
+        Block_::<SimulatedContext> {
+            command: Command {
+                proposer: Author(3),
+                index: 2,
+            },
+            time: NodeTime(2),
+            previous_quorum_certificate_hash: QuorumCertificateHash(47),
+            round: Round(3),
+            author: Author(2),
         },
-        NodeTime(2),
-        QuorumCertificateHash(47),
-        Round(3),
-        Author(2),
     );
-    let hash = context.hash(&b2);
-    assert!(context.verify(b.author(), hash, b.signature()).is_err());
+    assert!(b2.verify(&context).is_ok());
+    assert!(context
+        .verify(Author(2), context.hash(&b.value), b2.signature)
+        .is_err());
 }

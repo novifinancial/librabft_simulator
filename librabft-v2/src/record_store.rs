@@ -157,8 +157,8 @@ impl<'a, Context: SmrContext> Iterator for BackwardQuorumCertificateIterator<'a,
             return None;
         }
         let qc = self.store.quorum_certificate(self.current_hash).unwrap();
-        let block = self.store.block(qc.certified_block_hash).unwrap();
-        self.current_hash = block.previous_quorum_certificate_hash;
+        let block = self.store.block(qc.value.certified_block_hash).unwrap();
+        self.current_hash = block.value.previous_quorum_certificate_hash;
         Some(qc)
     }
 }
@@ -199,7 +199,7 @@ impl<Context: SmrContext> RecordStoreState<Context> {
         &self,
         qc_hash: QuorumCertificateHash<Context::HashValue>,
     ) -> impl Iterator<Item = Round> + '_ {
-        BackwardQuorumCertificateIterator::new(self, qc_hash).map(|qc| qc.round)
+        BackwardQuorumCertificateIterator::new(self, qc_hash).map(|qc| qc.value.round)
     }
 
     fn update_current_round(&mut self, round: Round) {
@@ -237,16 +237,16 @@ impl<Context: SmrContext> RecordStoreState<Context> {
         block_hash: BlockHash<Context::HashValue>,
     ) -> Option<Context::State> {
         let block = self.block(block_hash).unwrap();
-        let r3 = block.round;
-        let qc2_hash = block.previous_quorum_certificate_hash;
+        let r3 = block.value.round;
+        let qc2_hash = block.value.previous_quorum_certificate_hash;
         let mut iter = BackwardQuorumCertificateIterator::new(&self, qc2_hash);
         let opt_qc2 = iter.next();
         let opt_qc1 = iter.next();
         if let (Some(qc1), Some(qc2)) = (opt_qc1, opt_qc2) {
-            let r2 = qc2.round;
-            let r1 = qc1.round;
+            let r2 = qc2.value.round;
+            let r1 = qc1.value.round;
             if r3 == r2 + 1 && r2 == r1 + 1 {
-                return Some(qc1.state.clone());
+                return Some(qc1.value.state.clone());
             }
         }
         None
@@ -257,70 +257,80 @@ impl<Context: SmrContext> RecordStoreState<Context> {
         context: &Context,
         record: &Record<Context>,
     ) -> Result<Context::HashValue> {
-        let hash = context.hash(record);
         match record {
             Record::Block(block) => {
+                let hash = context.hash(&block.value);
                 ensure!(
                     !self.blocks.contains_key(&BlockHash(hash)),
                     "Block was already inserted."
                 );
-                context.verify(block.author, hash, block.signature)?;
+                context.verify(block.value.author, hash, block.signature)?;
                 ensure!(
-                    block.previous_quorum_certificate_hash == self.initial_hash
+                    block.value.previous_quorum_certificate_hash == self.initial_hash
                         || self
                             .quorum_certificates
-                            .contains_key(&block.previous_quorum_certificate_hash),
+                            .contains_key(&block.value.previous_quorum_certificate_hash),
                     "The previous QC (if any) must be verified first."
                 );
-                if self.initial_hash == block.previous_quorum_certificate_hash {
-                    ensure!(block.round > Round(0), "Rounds must start at 1");
+                if self.initial_hash == block.value.previous_quorum_certificate_hash {
+                    ensure!(block.value.round > Round(0), "Rounds must start at 1");
                 } else {
                     let previous_qc = self
-                        .quorum_certificate(block.previous_quorum_certificate_hash)
+                        .quorum_certificate(block.value.previous_quorum_certificate_hash)
                         .unwrap();
-                    let previous_block = self.block(previous_qc.certified_block_hash).unwrap();
+                    let previous_block =
+                        self.block(previous_qc.value.certified_block_hash).unwrap();
                     ensure!(
-                        block.round > previous_block.round,
+                        block.value.round > previous_block.value.round,
                         "Rounds must be increasing"
                     );
                 }
+                Ok(hash)
             }
             Record::Vote(vote) => {
+                let hash = context.hash(&vote.value);
                 ensure!(
-                    vote.epoch_id == self.epoch_id,
+                    vote.value.epoch_id == self.epoch_id,
                     "Epoch identifier of vote ({:?}) must match the current epoch ({:?}).",
-                    vote.epoch_id,
+                    vote.value.epoch_id,
                     self.epoch_id
                 );
                 ensure!(
-                    self.blocks.contains_key(&vote.certified_block_hash),
+                    self.blocks.contains_key(&vote.value.certified_block_hash),
                     "The certified block hash of a vote must be verified first."
                 );
                 ensure!(
-                    self.block(vote.certified_block_hash).unwrap().round == vote.round,
+                    self.block(vote.value.certified_block_hash)
+                        .unwrap()
+                        .value
+                        .round
+                        == vote.value.round,
                     "The round of the vote must match the certified block."
                 );
                 ensure!(
-                    self.vote_committed_state(vote.certified_block_hash) == vote.committed_state,
+                    self.vote_committed_state(vote.value.certified_block_hash)
+                        == vote.value.committed_state,
                     "The committed_state value of a vote must follow the commit rule."
                 );
                 ensure!(
-                    vote.round == self.current_round,
+                    vote.value.round == self.current_round,
                     "Only accepting votes for a proposal at the current {:?}. This one was at {:?}",
                     self.current_round,
-                    vote.round
+                    vote.value.round
                 );
                 ensure!(
-                    !self.current_votes.contains_key(&vote.author),
+                    !self.current_votes.contains_key(&vote.value.author),
                     "We insert votes only for authors who haven't voted yet."
                 );
-                context.verify(vote.author, hash, vote.signature)?;
+                context.verify(vote.value.author, hash, vote.signature)?;
+                Ok(hash)
             }
             Record::QuorumCertificate(qc) => {
+                let hash = context.hash(&qc.value);
                 ensure!(
-                    qc.epoch_id == self.epoch_id,
+                    qc.value.epoch_id == self.epoch_id,
                     "Epoch identifier of QC ({:?}) must match the current epoch ({:?}).",
-                    qc.epoch_id,
+                    qc.value.epoch_id,
                     self.epoch_id
                 );
                 ensure!(
@@ -330,32 +340,41 @@ impl<Context: SmrContext> RecordStoreState<Context> {
                     "QuorumCertificate was already inserted."
                 );
                 ensure!(
-                    self.blocks.contains_key(&qc.certified_block_hash),
+                    self.blocks.contains_key(&qc.value.certified_block_hash),
                     "The certified block hash of a QC must be verified first."
                 );
                 ensure!(
-                    self.block(qc.certified_block_hash).unwrap().round == qc.round,
+                    self.block(qc.value.certified_block_hash)
+                        .unwrap()
+                        .value
+                        .round
+                        == qc.value.round,
                     "The round of the QC must match the certified block."
                 );
                 ensure!(
-                    qc.author == self.block(qc.certified_block_hash).unwrap().author,
+                    qc.value.author
+                        == self
+                            .block(qc.value.certified_block_hash)
+                            .unwrap()
+                            .value
+                            .author,
                     "QCs must be created by the author of the certified block"
                 );
                 ensure!(
-                    self.vote_committed_state(qc.certified_block_hash) == qc.committed_state,
+                    self.vote_committed_state(qc.value.certified_block_hash)
+                        == qc.value.committed_state,
                     "The committed_state value of a QC must follow the commit rule."
                 );
                 let mut weight = 0;
-                for (author, signature) in &qc.votes {
-                    let original_vote_hash = context.hash(&Record::<Context>::Vote(Vote {
+                for (author, signature) in &qc.value.votes {
+                    let original_vote_hash = context.hash(&Vote_::<Context> {
                         epoch_id: self.epoch_id,
-                        round: qc.round,
-                        certified_block_hash: qc.certified_block_hash,
-                        state: qc.state.clone(),
-                        committed_state: qc.committed_state.clone(),
+                        round: qc.value.round,
+                        certified_block_hash: qc.value.certified_block_hash,
+                        state: qc.value.state.clone(),
+                        committed_state: qc.value.committed_state.clone(),
                         author: *author,
-                        signature: Context::Signature::default(), // ignored
-                    }));
+                    });
                     context.verify(*author, original_vote_hash, *signature)?;
                     weight += self.configuration.weight(author);
                 }
@@ -363,34 +382,36 @@ impl<Context: SmrContext> RecordStoreState<Context> {
                     weight >= self.configuration.quorum_threshold(),
                     "Votes in QCs must form a quorum"
                 );
-                context.verify(qc.author, hash, qc.signature)?;
+                context.verify(qc.value.author, hash, qc.signature)?;
+                Ok(hash)
             }
             Record::Timeout(timeout) => {
+                let hash = context.hash(&timeout.value);
                 ensure!(
-                    timeout.epoch_id == self.epoch_id,
+                    timeout.value.epoch_id == self.epoch_id,
                     "Epoch identifier of timeout ({:?}) must match the current epoch ({:?}).",
-                    timeout.epoch_id,
+                    timeout.value.epoch_id,
                     self.epoch_id
                 );
                 ensure!(
-                    timeout.highest_certified_block_round
+                    timeout.value.highest_certified_block_round
                         <= self.highest_quorum_certificate_round(),
                     "Timeouts must refer to a known certified block round."
                 );
                 ensure!(
-                    timeout.round == self.current_round,
+                    timeout.value.round == self.current_round,
                     "Accepting only timeouts at the current {:?}. This one was at {:?}",
                     self.current_round,
-                    timeout.round
+                    timeout.value.round
                 );
                 ensure!(
-                    !self.current_timeouts.contains_key(&timeout.author),
+                    !self.current_timeouts.contains_key(&timeout.value.author),
                     "A timeout is already known for the same round and the same author"
                 );
-                context.verify(timeout.author, hash, timeout.signature)?;
+                context.verify(timeout.value.author, hash, timeout.signature)?;
+                Ok(hash)
             }
         }
-        Ok(hash)
     }
 
     fn quorum_certificate(
@@ -407,20 +428,24 @@ impl<Context: SmrContext> RecordStoreState<Context> {
     ) -> Option<Context::State> {
         let block = self.block(block_hash).unwrap();
         let (previous_state, previous_voters, previous_author) = {
-            if block.previous_quorum_certificate_hash == self.initial_hash {
+            if block.value.previous_quorum_certificate_hash == self.initial_hash {
                 (&self.initial_state, None, Vec::new())
             } else {
                 let previous_qc = self
-                    .quorum_certificate(block.previous_quorum_certificate_hash)
+                    .quorum_certificate(block.value.previous_quorum_certificate_hash)
                     .unwrap();
-                let voters = previous_qc.votes.iter().map(|x| x.0).collect();
-                (&previous_qc.state, Some(previous_qc.author), voters)
+                let voters = previous_qc.value.votes.iter().map(|x| x.0).collect();
+                (
+                    &previous_qc.value.state,
+                    Some(previous_qc.value.author),
+                    voters,
+                )
             }
         };
         smr_context.compute(
             previous_state,
-            block.command.clone(),
-            block.time,
+            block.value.command.clone(),
+            block.value.time,
             previous_voters,
             previous_author,
         )
@@ -438,8 +463,8 @@ impl<Context: SmrContext> RecordStoreState<Context> {
         match record {
             Record::Block(block) => {
                 let block_hash = BlockHash(hash);
-                if block.round == self.current_round
-                    && PacemakerState::leader(&*self, block.round) == block.author
+                if block.value.round == self.current_round
+                    && PacemakerState::leader(&*self, block.value.round) == block.value.author
                 {
                     // If we use a VRF, this assumes that we have inserted the highest commit rule
                     // beforehand.
@@ -448,17 +473,17 @@ impl<Context: SmrContext> RecordStoreState<Context> {
                 self.blocks.insert(block_hash, block);
             }
             Record::Vote(vote) => {
-                self.current_votes.insert(vote.author, vote.clone());
+                self.current_votes.insert(vote.value.author, vote.clone());
                 let has_newly_won_election = match &mut self.current_election {
                     ElectionState::Ongoing { ballot } => {
                         let entry = ballot
-                            .entry((vote.certified_block_hash, vote.state.clone()))
+                            .entry((vote.value.certified_block_hash, vote.value.state.clone()))
                             .or_insert(0);
-                        *entry += self.configuration.weight(&vote.author);
+                        *entry += self.configuration.weight(&vote.value.author);
                         if *entry >= self.configuration.quorum_threshold() {
                             Some(ElectionState::Won {
-                                block_hash: vote.certified_block_hash,
-                                state: vote.state,
+                                block_hash: vote.value.certified_block_hash,
+                                state: vote.value.state,
                             })
                         } else {
                             None
@@ -471,10 +496,10 @@ impl<Context: SmrContext> RecordStoreState<Context> {
                 }
             }
             Record::QuorumCertificate(qc) => {
-                let block_hash = qc.certified_block_hash;
+                let block_hash = qc.value.certified_block_hash;
                 let qc_hash = QuorumCertificateHash(hash);
-                let qc_round = qc.round;
-                let qc_state = qc.state.clone();
+                let qc_round = qc.value.round;
+                let qc_state = qc.value.state.clone();
                 self.quorum_certificates.insert(qc_hash, qc);
                 // Make sure that the state in the QC is known to execution.
                 match self.compute_state(block_hash, smr_context) {
@@ -499,8 +524,8 @@ impl<Context: SmrContext> RecordStoreState<Context> {
             }
             Record::Timeout(timeout) => {
                 self.current_timeouts
-                    .insert(timeout.author, timeout.clone());
-                self.current_timeouts_weight += self.configuration.weight(&timeout.author);
+                    .insert(timeout.value.author, timeout.clone());
+                self.current_timeouts_weight += self.configuration.weight(&timeout.value.author);
                 if self.current_timeouts_weight >= self.configuration.quorum_threshold() {
                     let timeout_certificate =
                         self.current_timeouts.iter().map(|x| x.1.clone()).collect();
@@ -536,11 +561,11 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
         iter.next();
         let mut commits = Vec::new();
         for qc in iter {
-            if qc.round <= after_round {
+            if qc.value.round <= after_round {
                 break;
             }
-            info!("Delivering committed state for round {:?}", qc.round);
-            commits.push((qc.round, qc.state.clone()));
+            info!("Delivering committed state for round {:?}", qc.value.round);
+            commits.push((qc.value.round, qc.value.state.clone()));
         }
         commits.reverse();
         commits
@@ -560,24 +585,24 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
 
     fn previous_round(&self, block_hash: BlockHash<Context::HashValue>) -> Round {
         let block = self.block(block_hash).unwrap();
-        let hash = block.previous_quorum_certificate_hash;
+        let hash = block.value.previous_quorum_certificate_hash;
         if hash == self.initial_hash {
             Round(0)
         } else {
             let qc = self.quorum_certificate(hash).unwrap();
-            let block = self.block(qc.certified_block_hash).unwrap();
-            block.round
+            let block = self.block(qc.value.certified_block_hash).unwrap();
+            block.value.round
         }
     }
 
     fn second_previous_round(&self, block_hash: BlockHash<Context::HashValue>) -> Round {
         let block = self.block(block_hash).unwrap();
-        let hash = block.previous_quorum_certificate_hash;
+        let hash = block.value.previous_quorum_certificate_hash;
         if hash == self.initial_hash {
             Round(0)
         } else {
             let qc = self.quorum_certificate(hash).unwrap();
-            self.previous_round(qc.certified_block_hash)
+            self.previous_round(qc.value.certified_block_hash)
         }
     }
 
@@ -596,9 +621,9 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
                 None => None,
                 Some(hash) => {
                     let block = self.block(*hash).unwrap();
-                    assert_eq!(block.round, self.current_round);
-                    assert_eq!(block.author, leader);
-                    Some((*hash, block.round, block.author))
+                    assert_eq!(block.value.round, self.current_round);
+                    assert_eq!(block.value.author, leader);
+                    Some((*hash, block.value.round, block.value.author))
                 }
             }
         } else {
@@ -608,13 +633,15 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
 
     fn create_timeout(&mut self, author: Context::Author, round: Round, smr_context: &mut Context) {
         self.insert_network_record(
-            Record::make_timeout(
+            Record::Timeout(SignedValue::make(
                 smr_context,
-                self.epoch_id,
-                round,
-                self.highest_quorum_certificate_round(),
-                author,
-            ),
+                Timeout_ {
+                    epoch_id: self.epoch_id,
+                    round,
+                    highest_certified_block_round: self.highest_quorum_certificate_round(),
+                    author,
+                },
+            )),
             smr_context,
         );
     }
@@ -631,14 +658,16 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
         smr_context: &mut Context,
     ) {
         if let Some(command) = smr_context.fetch() {
-            let block = Record::make_block(
+            let block = Record::Block(SignedValue::make(
                 smr_context,
-                command,
-                clock,
-                previous_qc_hash,
-                self.current_round,
-                local_author,
-            );
+                Block_ {
+                    command,
+                    time: clock,
+                    previous_quorum_certificate_hash: previous_qc_hash,
+                    round: self.current_round,
+                    author: local_author,
+                },
+            ));
             self.insert_network_record(block, smr_context)
         }
     }
@@ -652,15 +681,17 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
         let committed_state = self.vote_committed_state(block_hash);
         match self.compute_state(block_hash, smr_context) {
             Some(state) => {
-                let vote = Record::make_vote(
+                let vote = Record::Vote(SignedValue::make(
                     smr_context,
-                    self.epoch_id,
-                    self.block(block_hash).unwrap().round,
-                    block_hash,
-                    state,
-                    local_author,
-                    committed_state,
-                );
+                    Vote_ {
+                        epoch_id: self.epoch_id,
+                        round: self.block(block_hash).unwrap().value.round,
+                        certified_block_hash: block_hash,
+                        state,
+                        author: local_author,
+                        committed_state,
+                    },
+                ));
                 self.insert_network_record(vote, smr_context);
                 true
             }
@@ -673,9 +704,9 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
         local_author: Context::Author,
         smr_context: &mut Context,
     ) -> bool {
-        let quorum_certificate = match &self.current_election {
+        match &self.current_election {
             ElectionState::Won { block_hash, state } => {
-                if self.block(*block_hash).unwrap().author != local_author {
+                if self.block(*block_hash).unwrap().value.author != local_author {
                     return false;
                 }
                 let committed_state = self.vote_committed_state(*block_hash);
@@ -683,31 +714,31 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
                     .current_votes
                     .iter()
                     .filter_map(|(_, vote)| {
-                        if vote.state == *state {
-                            Some((vote.author, vote.signature))
+                        if vote.value.state == *state {
+                            Some((vote.value.author, vote.signature))
                         } else {
                             None
                         }
                     })
                     .collect();
-                Record::make_quorum_certificate(
+                let quorum_certificate = Record::QuorumCertificate(SignedValue::make(
                     smr_context,
-                    self.epoch_id,
-                    self.current_round,
-                    *block_hash,
-                    state.clone(),
-                    authors_and_signatures,
-                    committed_state,
-                    local_author,
-                )
+                    QuorumCertificate_ {
+                        epoch_id: self.epoch_id,
+                        round: self.current_round,
+                        certified_block_hash: *block_hash,
+                        state: state.clone(),
+                        votes: authors_and_signatures,
+                        committed_state,
+                        author: local_author,
+                    },
+                ));
+                self.current_election = ElectionState::Closed;
+                self.insert_network_record(quorum_certificate, smr_context);
+                true
             }
-            _ => {
-                return false;
-            }
-        };
-        self.current_election = ElectionState::Closed;
-        self.insert_network_record(quorum_certificate, smr_context);
-        true
+            _ => false,
+        }
     }
 
     fn highest_commit_certificate(&self) -> Option<&QuorumCertificate<Context>> {
@@ -765,18 +796,18 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
             .highest_commit_certificate_hash
             .unwrap_or(self.initial_hash);
         let chain1: Vec<_> = BackwardQuorumCertificateIterator::new(self, highest_qc_hash)
-            .take_while(|qc| !known_qc_rounds.contains(&qc.round))
+            .take_while(|qc| !known_qc_rounds.contains(&qc.value.round))
             .collect();
         let chain2: Vec<_> = BackwardQuorumCertificateIterator::new(self, highest_cc_hash)
-            .take_while(|qc| !known_qc_rounds.contains(&qc.round))
+            .take_while(|qc| !known_qc_rounds.contains(&qc.value.round))
             .collect();
         let qcs = merge_sort(chain1.into_iter(), chain2.into_iter(), |qc1, qc2| {
-            qc2.round.cmp(&qc1.round)
+            qc2.value.round.cmp(&qc1.value.round)
         });
         let mut result = Vec::new();
         for n in (0..qcs.len()).rev() {
             let qc = qcs[n];
-            let block = self.block(qc.certified_block_hash).unwrap();
+            let block = self.block(qc.value.certified_block_hash).unwrap();
             result.push(Record::Block(block.clone()));
             result.push(Record::QuorumCertificate(qc.clone()));
         }
