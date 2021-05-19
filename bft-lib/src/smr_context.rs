@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, hash::Hash};
 
 // -- BEGIN FILE smr_apis --
-pub trait ContextTypes {
+pub trait SmrTypes {
     /// An execution state.
     type State: Eq
         + PartialEq
@@ -91,7 +91,7 @@ pub trait Signable<Hasher> {
     fn write(&self, hasher: &mut Hasher);
 }
 
-/// Activate the default implementation of `Signable` based on serde.
+/// Activate the reference implementation of `Signable` based on serde.
 /// * We use `serde_name` to extract a seed from the name of structs and enums.
 /// * We use `BCS` to generate canonical bytes suitable for hashing and signing.
 pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
@@ -182,16 +182,16 @@ pub trait Storage<Author, State> {
 }
 
 pub trait SmrContext:
-    ContextTypes
+    SmrTypes
     + CryptographicModule
     + CommandExecutor<
         <Self as CryptographicModule>::Author,
-        <Self as ContextTypes>::State,
-        <Self as ContextTypes>::Command,
-    > + CommandFetcher<<Self as ContextTypes>::Command>
-    + StateFinalizer<<Self as ContextTypes>::State>
-    + EpochReader<<Self as CryptographicModule>::Author, <Self as ContextTypes>::State>
-    + Storage<<Self as CryptographicModule>::Author, <Self as ContextTypes>::State>
+        <Self as SmrTypes>::State,
+        <Self as SmrTypes>::Command,
+    > + CommandFetcher<<Self as SmrTypes>::Command>
+    + StateFinalizer<<Self as SmrTypes>::State>
+    + EpochReader<<Self as CryptographicModule>::Author, <Self as SmrTypes>::State>
+    + Storage<<Self as CryptographicModule>::Author, <Self as SmrTypes>::State>
     // TODO: minimize trait requirements. The following bounds are
     // required to work around the infamous limitations of
     // #[derive(..)] macros on generic types (see
