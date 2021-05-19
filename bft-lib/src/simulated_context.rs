@@ -127,7 +127,7 @@ impl SimulatedContext {
     }
 }
 
-impl ContextTypes for SimulatedContext {
+impl SmrTypes for SimulatedContext {
     type State = State;
     type Command = Command;
 }

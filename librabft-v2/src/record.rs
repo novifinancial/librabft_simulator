@@ -1,10 +1,6 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-// We only use comparison for testing.
-#![allow(clippy::derive_hash_xor_eq)]
-#![allow(clippy::too_many_arguments)]
-
 use crate::base_types::*;
 use bft_lib::{
     base_types::*,
@@ -35,9 +31,12 @@ pub(crate) enum Record<Context: SmrContext> {
 }
 
 pub(crate) type Block<C> = SignedValue<Block_<C>, <C as CryptographicModule>::Signature>;
+
 pub(crate) type Vote<C> = SignedValue<Vote_<C>, <C as CryptographicModule>::Signature>;
+
 pub(crate) type QuorumCertificate<C> =
     SignedValue<QuorumCertificate_<C>, <C as CryptographicModule>::Signature>;
+
 pub(crate) type Timeout<C> = SignedValue<Timeout_<C>, <C as CryptographicModule>::Signature>;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
@@ -111,7 +110,8 @@ impl<Context: SmrContext> bft_lib::smr_context::CommitCertificate<Context::State
     }
 }
 
-// Requirements for SignedValue.
+// Requirements for SignedValue. To avoid computing hashes in the
+// wrong way, `Record` should not implement `BcsSignable`.
 impl<Context: SmrContext> BcsSignable for Block_<Context> {}
 impl<Context: SmrContext> BcsSignable for Vote_<Context> {}
 impl<Context: SmrContext> BcsSignable for QuorumCertificate_<Context> {}
