@@ -6,8 +6,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 struct Foo(u32);
+
 #[derive(Serialize, Deserialize)]
 struct Bar(u32);
+
+impl BcsSignable for Foo {}
+impl BcsSignable for Bar {}
 
 #[test]
 fn test_hashing_and_signing() {

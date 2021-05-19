@@ -91,12 +91,14 @@ pub trait Signable<Hasher> {
     fn write(&self, hasher: &mut Hasher);
 }
 
-/// Blanket implementation based on serde. (TODO: make it opt-in?)
+/// Activate the default implementation of `Signable` based on serde.
 /// * We use `serde_name` to extract a seed from the name of structs and enums.
 /// * We use `BCS` to generate canonical bytes suitable for hashing and signing.
+pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
+
 impl<T, Hasher> Signable<Hasher> for T
 where
-    T: serde::Serialize + serde::de::DeserializeOwned,
+    T: BcsSignable,
     Hasher: std::io::Write,
 {
     fn write(&self, hasher: &mut Hasher) {
@@ -200,6 +202,47 @@ pub trait SmrContext:
 {
 }
 // -- END FILE --
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+pub struct SignedValue<T, S> {
+    pub value: T,
+    pub signature: S,
+}
+
+impl<T, S> AsRef<T> for SignedValue<T, S> {
+    fn as_ref(&self) -> &T {
+        &self.value
+    }
+}
+
+/// Helper trait for SignedValue.
+pub trait Authored<A> {
+    fn author(&self) -> A;
+}
+
+impl<T, S> SignedValue<T, S> {
+    pub fn make<C>(context: &mut C, value: T) -> Self
+    where
+        S: Copy,
+        C: SmrContext<Signature = S>,
+        T: Authored<C::Author> + Signable<C::Hasher>,
+    {
+        assert_eq!(value.author(), context.author());
+        let h = context.hash(&value);
+        let signature = context.sign(h).expect("Signing should not fail");
+        SignedValue { value, signature }
+    }
+
+    pub fn verify<C>(&self, context: &C) -> Result<()>
+    where
+        S: Copy,
+        C: SmrContext<Signature = S>,
+        T: Authored<C::Author> + Signable<C::Hasher>,
+    {
+        let h = context.hash(&self.value);
+        context.verify(self.value.author(), h, self.signature)
+    }
+}
 
 impl<Author> Config<Author> {
     pub fn new(author: Author) -> Self {

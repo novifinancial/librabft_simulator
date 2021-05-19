@@ -38,6 +38,8 @@ impl EpochId {
     }
 }
 
+impl crate::smr_context::BcsSignable for EpochId {}
+
 impl fmt::Debug for NodeTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "@{}", self.0)

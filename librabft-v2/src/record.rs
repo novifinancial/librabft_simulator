@@ -6,7 +6,10 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::base_types::*;
-use bft_lib::{base_types::*, smr_context::SmrContext};
+use bft_lib::{
+    base_types::*,
+    smr_context::{Authored, BcsSignable, CryptographicModule, SignedValue, SmrContext},
+};
 use serde::{Deserialize, Serialize};
 
 #[cfg(all(test, feature = "simulator"))]
@@ -31,20 +34,11 @@ pub(crate) enum Record<Context: SmrContext> {
     Timeout(Timeout<Context>),
 }
 
-pub trait Authored<A> {
-    fn author(&self) -> A;
-}
-
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
-pub struct SignedValue<Context: SmrContext, T> {
-    pub(crate) value: T,
-    pub(crate) signature: Context::Signature,
-}
-
-pub(crate) type Block<C> = SignedValue<C, Block_<C>>;
-pub(crate) type Vote<C> = SignedValue<C, Vote_<C>>;
-pub(crate) type QuorumCertificate<C> = SignedValue<C, QuorumCertificate_<C>>;
-pub(crate) type Timeout<C> = SignedValue<C, Timeout_<C>>;
+pub(crate) type Block<C> = SignedValue<Block_<C>, <C as CryptographicModule>::Signature>;
+pub(crate) type Vote<C> = SignedValue<Vote_<C>, <C as CryptographicModule>::Signature>;
+pub(crate) type QuorumCertificate<C> =
+    SignedValue<QuorumCertificate_<C>, <C as CryptographicModule>::Signature>;
+pub(crate) type Timeout<C> = SignedValue<Timeout_<C>, <C as CryptographicModule>::Signature>;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Block_<Context: SmrContext> {
@@ -109,37 +103,19 @@ pub(crate) struct Timeout_<Context: SmrContext> {
 }
 // -- END FILE --
 
-impl<C: SmrContext, T> AsRef<T> for SignedValue<C, T> {
-    fn as_ref(&self) -> &T {
-        &self.value
-    }
-}
-
-impl<
-        Context: SmrContext,
-        T: Authored<Context::Author> + serde::Serialize + serde::de::DeserializeOwned,
-    > SignedValue<Context, T>
-{
-    pub fn make(context: &mut Context, value: T) -> Self {
-        assert_eq!(value.author(), context.author());
-        let h = context.hash(&value);
-        let signature = context.sign(h).expect("Signing should not fail");
-        SignedValue { value, signature }
-    }
-
-    pub fn verify(&self, context: &Context) -> Result<()> {
-        let h = context.hash(&self.value);
-        context.verify(self.value.author(), h, self.signature)
-    }
-}
-
 impl<Context: SmrContext> bft_lib::smr_context::CommitCertificate<Context::State>
-    for QuorumCertificate<Context>
+    for QuorumCertificate_<Context>
 {
     fn committed_state(&self) -> Option<&Context::State> {
-        self.value.committed_state.as_ref()
+        self.committed_state.as_ref()
     }
 }
+
+// Requirements for SignedValue.
+impl<Context: SmrContext> BcsSignable for Block_<Context> {}
+impl<Context: SmrContext> BcsSignable for Vote_<Context> {}
+impl<Context: SmrContext> BcsSignable for QuorumCertificate_<Context> {}
+impl<Context: SmrContext> BcsSignable for Timeout_<Context> {}
 
 impl<Context: SmrContext> Authored<Context::Author> for Block_<Context> {
     fn author(&self) -> Context::Author {

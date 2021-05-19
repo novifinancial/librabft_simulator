@@ -22,7 +22,7 @@ fn test_node() {
     let cmd = context.fetch().unwrap();
     let b0 = SignedValue::make(
         &mut context,
-        Block_::<SimulatedContext> {
+        Block_ {
             command: cmd.clone(),
             time: NodeTime(1),
             previous_quorum_certificate_hash: initial_hash,
@@ -50,7 +50,7 @@ fn test_node() {
     );
     let qc0 = SignedValue::make(
         &mut context,
-        QuorumCertificate_::<SimulatedContext> {
+        QuorumCertificate_ {
             epoch_id,
             round: Round(1),
             certified_block_hash: block_hash,

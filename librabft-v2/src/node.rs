@@ -306,7 +306,7 @@ where
             if round == self.record_store.highest_committed_round() {
                 match self.record_store.highest_commit_certificate() {
                     None => context.commit(&state, None),
-                    Some(x) => context.commit(&state, Some(x)),
+                    Some(x) => context.commit(&state, Some(&x.value)),
                 };
             } else {
                 context.commit(&state, None);

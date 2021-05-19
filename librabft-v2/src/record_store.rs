@@ -7,7 +7,11 @@ use crate::{
     record::*,
 };
 use anyhow::{bail, ensure};
-use bft_lib::{base_types::*, configuration::EpochConfiguration, smr_context::SmrContext};
+use bft_lib::{
+    base_types::*,
+    configuration::EpochConfiguration,
+    smr_context::{SignedValue, SmrContext},
+};
 use log::{debug, info, warn};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -653,8 +657,8 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
     fn propose_block(
         &mut self,
         local_author: Context::Author,
-        previous_qc_hash: QuorumCertificateHash<Context::HashValue>,
-        clock: NodeTime,
+        previous_quorum_certificate_hash: QuorumCertificateHash<Context::HashValue>,
+        time: NodeTime,
         smr_context: &mut Context,
     ) {
         if let Some(command) = smr_context.fetch() {
@@ -662,8 +666,8 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
                 smr_context,
                 Block_ {
                     command,
-                    time: clock,
-                    previous_quorum_certificate_hash: previous_qc_hash,
+                    time,
+                    previous_quorum_certificate_hash,
                     round: self.current_round,
                     author: local_author,
                 },
@@ -675,18 +679,18 @@ impl<Context: SmrContext> RecordStore<Context> for RecordStoreState<Context> {
     fn create_vote(
         &mut self,
         local_author: Context::Author,
-        block_hash: BlockHash<Context::HashValue>,
+        certified_block_hash: BlockHash<Context::HashValue>,
         smr_context: &mut Context,
     ) -> bool {
-        let committed_state = self.vote_committed_state(block_hash);
-        match self.compute_state(block_hash, smr_context) {
+        let committed_state = self.vote_committed_state(certified_block_hash);
+        match self.compute_state(certified_block_hash, smr_context) {
             Some(state) => {
                 let vote = Record::Vote(SignedValue::make(
                     smr_context,
                     Vote_ {
                         epoch_id: self.epoch_id,
-                        round: self.block(block_hash).unwrap().value.round,
-                        certified_block_hash: block_hash,
+                        round: self.block(certified_block_hash).unwrap().value.round,
+                        certified_block_hash,
                         state,
                         author: local_author,
                         committed_state,
