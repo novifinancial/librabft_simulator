@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use bft_lib::{simulated_context::SimulatedContext, smr_context::*};
+use bft_lib::{simulated_context::*, smr_context::*};
 
 struct SharedRecordStore {
-    store: RecordStoreState,
+    store: RecordStoreState<SimulatedContext>,
     contexts: HashMap<Author, SimulatedContext>,
 }
 
@@ -41,28 +41,27 @@ impl SharedRecordStore {
     fn propose_block(
         &mut self,
         author_id: usize,
-        previous_qc_hash: QuorumCertificateHash,
+        previous_qc_hash: QuorumCertificateHash<u64>,
         clock: NodeTime,
     ) {
         let author = Author(author_id);
         self.store.propose_block(
-            author,
+            self.contexts.get_mut(&author).unwrap(),
             previous_qc_hash,
             clock,
-            self.contexts.get_mut(&author).unwrap(),
         );
     }
 
-    fn create_vote(&mut self, author_id: usize, block_hash: BlockHash) -> bool {
+    fn create_vote(&mut self, author_id: usize, block_hash: BlockHash<u64>) -> bool {
         let author = Author(author_id);
         self.store
-            .create_vote(author, block_hash, self.contexts.get_mut(&author).unwrap())
+            .create_vote(self.contexts.get_mut(&author).unwrap(), block_hash)
     }
 
     fn check_for_new_quorum_certificate(&mut self) -> bool {
         let author = self.leader(self.store.current_round());
         self.store
-            .check_for_new_quorum_certificate(author, self.contexts.get_mut(&author).unwrap())
+            .check_for_new_quorum_certificate(self.contexts.get_mut(&author).unwrap())
     }
 
     fn leader(&self, round: Round) -> Author {
@@ -73,10 +72,9 @@ impl SharedRecordStore {
         let author = self.leader(self.store.current_round());
         let previous_qc_hash = self.store.highest_quorum_certificate_hash();
         self.store.propose_block(
-            author,
+            self.contexts.get_mut(&author).unwrap(),
             previous_qc_hash,
             clock,
-            self.contexts.get_mut(&author).unwrap(),
         );
         let proposed_hash = self.store.current_proposed_block.unwrap();
         let threshold = self
@@ -253,12 +251,16 @@ fn test_commit() {
     assert_eq!(store.current_round(), Round(7));
     assert_eq!(store.current_timeouts.len(), 0);
 
-    assert_eq!(store.highest_commit_certificate().unwrap().round, Round(5));
+    assert_eq!(
+        store.highest_commit_certificate().unwrap().value.round,
+        Round(5)
+    );
     assert_eq!(
         store.previous_round(
             store
                 .highest_commit_certificate()
                 .unwrap()
+                .value
                 .certified_block_hash
         ),
         Round(4)
@@ -268,6 +270,7 @@ fn test_commit() {
             store
                 .highest_commit_certificate()
                 .unwrap()
+                .value
                 .certified_block_hash
         ),
         Round(3)
@@ -282,6 +285,7 @@ fn test_commit() {
         store
             .highest_commit_certificate()
             .unwrap()
+            .value
             .committed_state
             .as_ref()
     );

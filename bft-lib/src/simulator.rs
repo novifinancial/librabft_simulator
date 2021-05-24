@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    base_types::{Author, Duration, NodeTime, Round},
+    base_types::{Duration, NodeTime, Round},
     data_writer::DataWriter,
-    ConsensusNode, DataSyncNode, NodeUpdateActions,
+    interfaces::{ConsensusNode, DataSyncNode, NodeUpdateActions},
+    simulated_context::Author,
+    smr_context::SmrContext,
 };
 use futures::executor::block_on;
 use log::{debug, trace};
@@ -29,7 +31,7 @@ impl std::ops::Add<Duration> for GlobalTime {
     type Output = GlobalTime;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        GlobalTime(self.0 + rhs)
+        GlobalTime(self.0 + rhs.0)
     }
 }
 
@@ -106,18 +108,19 @@ pub struct SimulatedNode<Node, Context> {
 impl<Node, Context> SimulatedNode<Node, Context>
 where
     Node: ConsensusNode<Context>,
+    Context: SmrContext,
 {
-    fn update(&mut self, global_clock: GlobalTime) -> NodeUpdateActions {
+    fn update(&mut self, global_clock: GlobalTime) -> NodeUpdateActions<Context> {
         let local_clock = global_clock.to_node_time(self.startup_time);
         self.node.update_node(&mut self.context, local_clock)
     }
 }
 
-impl<Node, Context> SimulatedNode<Node, Context>
+impl<Node, Context> ActiveRound for SimulatedNode<Node, Context>
 where
     Node: ActiveRound,
 {
-    pub fn active_round(&self) -> Round {
+    fn active_round(&self) -> Round {
         self.node.active_round()
     }
 }
@@ -137,6 +140,7 @@ impl<Node, Context, Notification, Request, Response>
     Simulator<Node, Context, Notification, Request, Response>
 where
     Node: ConsensusNode<Context>,
+    Context: SmrContext,
     Notification: std::cmp::Ord + std::fmt::Debug,
     Request: std::cmp::Ord + std::fmt::Debug,
     Response: std::cmp::Ord + std::fmt::Debug,
@@ -155,7 +159,7 @@ where
             .map(|index| {
                 let author = Author(index);
                 let mut context = context_factory(author, num_nodes);
-                let startup_time = clock.add_delay(network_delay) + 1;
+                let startup_time = clock.add_delay(network_delay) + Duration(1);
                 let node_time = NodeTime(0);
                 let deadline = GlobalTime::from_node_time(node_time, startup_time);
                 let event = Event::UpdateTimerEvent { author };
@@ -168,7 +172,7 @@ where
                 pending_events.push(ScheduledEvent(std::cmp::Reverse(deadline), event));
                 SimulatedNode {
                     startup_time,
-                    ignore_scheduled_updates_until: startup_time + (-1),
+                    ignore_scheduled_updates_until: startup_time + Duration(-1),
                     node,
                     context,
                 }
@@ -213,7 +217,7 @@ impl<Node, Context, Notification, Request, Response>
 impl<Node, Context, Notification, Request, Response>
     Simulator<Node, Context, Notification, Request, Response>
 where
-    Context: std::fmt::Debug,
+    Context: SmrContext<Author = Author>,
     Node: ConsensusNode<Context>
         + DataSyncNode<Context, Notification = Notification, Request = Request, Response = Response>
         + ActiveRound
@@ -226,7 +230,7 @@ where
         &mut self,
         clock: GlobalTime,
         author: Author,
-        actions: NodeUpdateActions,
+        actions: NodeUpdateActions<Context>,
     ) {
         debug!(
             "@{:?} Processing node actions for {:?}: {:?}",
@@ -241,10 +245,10 @@ where
                 GlobalTime::from_node_time(actions.next_scheduled_update, node.startup_time),
                 // Make sure we schedule the update strictly in the future so it does not get
                 // ignored by `ignore_scheduled_updates_until` below.
-                clock + 1,
+                clock + Duration(1),
             );
             // We don't remove the previously scheduled updates but this will cancel them.
-            node.ignore_scheduled_updates_until = new_deadline + (-1);
+            node.ignore_scheduled_updates_until = new_deadline + Duration(-1);
             new_deadline
             // scoping the mutable 'node' for the borrow checker
         };

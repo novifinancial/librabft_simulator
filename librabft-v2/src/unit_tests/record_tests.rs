@@ -2,30 +2,51 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use bft_lib::{
+    simulated_context::*,
+    smr_context::{Config, CryptographicModule},
+};
 
 #[test]
 fn test_block_signing() {
-    let b = Record::make_block(
-        Command {
-            proposer: Author(1),
-            index: 2,
-        },
-        NodeTime(2),
-        QuorumCertificateHash(47),
-        Round(3),
-        Author(2),
+    let mut context = SimulatedContext::new(
+        Config::new(Author(2)),
+        /* not used */ 0,
+        /* not used */ 0,
     );
-    assert!(b.signature().check(b.digest(), b.author()).is_ok());
-    assert!(b.signature().check(b.digest(), Author(1)).is_err());
-    let b2 = Record::make_block(
-        Command {
-            proposer: Author(3),
-            index: 2,
+    let b = SignedValue::make(
+        &mut context,
+        Block_::<SimulatedContext> {
+            command: Command {
+                proposer: Author(1),
+                index: 2,
+            },
+            time: NodeTime(2),
+            previous_quorum_certificate_hash: QuorumCertificateHash(47),
+            round: Round(3),
+            author: Author(2),
         },
-        NodeTime(2),
-        QuorumCertificateHash(47),
-        Round(3),
-        Author(2),
     );
-    assert!(b.signature().check(b2.digest(), b.author()).is_err());
+    assert!(b.verify(&context).is_ok());
+    assert!(context
+        .verify(Author(1), context.hash(&b.value), b.signature)
+        .is_err());
+
+    let b2 = SignedValue::make(
+        &mut context,
+        Block_::<SimulatedContext> {
+            command: Command {
+                proposer: Author(3),
+                index: 2,
+            },
+            time: NodeTime(2),
+            previous_quorum_certificate_hash: QuorumCertificateHash(47),
+            round: Round(3),
+            author: Author(2),
+        },
+    );
+    assert!(b2.verify(&context).is_ok());
+    assert!(context
+        .verify(Author(2), context.hash(&b.value), b2.signature)
+        .is_err());
 }

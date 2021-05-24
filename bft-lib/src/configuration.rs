@@ -1,7 +1,6 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::Author;
 use std::collections::BTreeMap;
 
 #[cfg(test)]
@@ -10,12 +9,15 @@ mod configuration_tests;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 /// Represent BFT permissions during an epoch.
-pub struct EpochConfiguration {
+pub struct EpochConfiguration<Author> {
     voting_rights: BTreeMap<Author, usize>,
     total_votes: usize,
 }
 
-impl EpochConfiguration {
+impl<Author> EpochConfiguration<Author>
+where
+    Author: std::cmp::Ord + Clone,
+{
     pub fn new(voting_rights: BTreeMap<Author, usize>) -> Self {
         let total_votes = voting_rights.iter().fold(0, |sum, (_, votes)| sum + *votes);
         EpochConfiguration {
@@ -54,7 +56,7 @@ impl EpochConfiguration {
         let mut target = seed as usize % self.total_votes;
         for (author, votes) in &self.voting_rights {
             if *votes > target {
-                return *author;
+                return author.clone();
             }
             target -= *votes;
         }

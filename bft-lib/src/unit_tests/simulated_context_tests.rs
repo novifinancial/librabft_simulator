@@ -2,6 +2,39 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct Foo(u32);
+
+#[derive(Serialize, Deserialize)]
+struct Bar(u32);
+
+impl BcsSignable for Foo {}
+impl BcsSignable for Bar {}
+
+#[test]
+fn test_hashing_and_signing() {
+    let mut context = SimulatedContext::new(
+        Config::new(Author(0)),
+        /* num_nodes */ 2,
+        /* max commands per epoch */ 2,
+    );
+    let h1 = context.hash(&Foo(35));
+    let h2 = context.hash(&Bar(35));
+
+    let sig1 = context.sign(h1).unwrap();
+    assert!(context.verify(Author(0), h1, sig1).is_ok());
+    assert!(context.verify(Author(1), h1, sig1).is_err());
+    assert!(context.verify(Author(0), h2, sig1).is_err());
+
+    let bytes = bcs::to_bytes(&Foo(35)).unwrap();
+    let mut hasher = DefaultHasher::default();
+    hasher.write(b"Foo::");
+    hasher.write(&bytes);
+    let h = hasher.finish();
+    assert_eq!(h1, h);
+}
 
 #[test]
 fn test_happened_before() {
@@ -34,9 +67,10 @@ fn test_happened_before() {
     assert!(!s2.happened_just_before(&s1));
 }
 
+#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
 struct DummyCertificate;
 
-impl CommitCertificate for DummyCertificate {
+impl CommitCertificate<State> for DummyCertificate {
     fn committed_state(&self) -> Option<&State> {
         None
     }
@@ -69,9 +103,9 @@ fn test_simulated_context() {
         .unwrap();
     assert_eq!(context.read_epoch_id(&s3), EpochId(0));
 
-    StateFinalizer::<DummyCertificate>::commit(&mut context, &s1, None);
-    StateFinalizer::<DummyCertificate>::commit(&mut context, &s2, None);
-    StateFinalizer::<DummyCertificate>::discard(&mut context, &s3);
+    StateFinalizer::<State>::commit(&mut context, &s1, None);
+    StateFinalizer::<State>::commit(&mut context, &s2, Some(&DummyCertificate));
+    StateFinalizer::<State>::discard(&mut context, &s3);
 
     assert_eq!(
         context.last_committed_ledger_state.execution_history,

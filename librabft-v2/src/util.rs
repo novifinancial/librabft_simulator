@@ -2,20 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(test)]
-#[path = "unit_tests/base_type_tests.rs"]
-mod base_type_tests;
+#[path = "unit_tests/util_tests.rs"]
+mod util_tests;
 
-// The following types are simplified for simulation purposes.
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
-pub struct BlockHash(pub u64);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug)]
-pub struct QuorumCertificateHash(pub u64);
-
-pub fn is_power2_minus1(x: usize) -> bool {
+pub(crate) fn is_power2_minus1(x: usize) -> bool {
     (x & (x + 1)) == 0
 }
 
-pub fn merge_sort<T: Eq, I: IntoIterator<Item = T>, F: Fn(&T, &T) -> std::cmp::Ordering>(
+pub(crate) fn merge_sort<T: Eq, I: IntoIterator<Item = T>, F: Fn(&T, &T) -> std::cmp::Ordering>(
     v1: I,
     v2: I,
     cmp: F,

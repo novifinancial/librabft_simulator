@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{node::*, record::*};
-use bft_lib::{base_types::*, smr_context::SmrContext, AsyncResult, DataSyncNode};
+use bft_lib::{base_types::*, interfaces::DataSyncNode, smr_context::SmrContext};
 use futures::future;
 use std::collections::BTreeSet;
 
@@ -12,19 +12,19 @@ mod data_sync_tests;
 
 // -- BEGIN FILE data_sync --
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone)]
-pub struct DataSyncNotification {
+pub struct DataSyncNotification<Context: SmrContext> {
     /// Current epoch identifier.
     current_epoch: EpochId,
     /// Tail QC of the highest commit rule.
-    highest_commit_certificate: Option<QuorumCertificate>,
+    highest_commit_certificate: Option<QuorumCertificate<Context>>,
     /// Highest QC.
-    highest_quorum_certificate: Option<QuorumCertificate>,
+    highest_quorum_certificate: Option<QuorumCertificate<Context>>,
     /// Timeouts in the highest TC, then at the current round, if any.
-    timeouts: Vec<Timeout>,
+    timeouts: Vec<Timeout<Context>>,
     /// Sender's vote at the current round, if any (meant for the proposer).
-    current_vote: Option<Vote>,
+    current_vote: Option<Vote<Context>>,
     /// Known proposed block at the current round, if any.
-    proposed_block: Option<Block>,
+    proposed_block: Option<Block<Context>>,
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone)]
@@ -36,17 +36,17 @@ pub struct DataSyncRequest {
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
-pub struct DataSyncResponse {
+pub struct DataSyncResponse<Context: SmrContext> {
     /// Current epoch identifier.
     current_epoch: EpochId,
     /// Records for the receiver to insert, for each epoch, in the given order.
     /// Epochs older than the receiver's current epoch will be skipped, as well as chains
     /// of records ending with QC known to the receiver.
-    records: Vec<(EpochId, Vec<Record>)>,
+    records: Vec<(EpochId, Vec<Record<Context>>)>,
 }
 // -- END FILE --
 
-impl NodeState {
+impl<Context: SmrContext> NodeState<Context> {
     fn create_request_internal(&self) -> DataSyncRequest {
         DataSyncRequest {
             current_epoch: self.epoch_id(),
@@ -55,15 +55,12 @@ impl NodeState {
     }
 }
 
-impl<Context> DataSyncNode<Context> for NodeState
-where
-    Context: SmrContext<QuorumCertificate>,
-{
-    type Notification = DataSyncNotification;
+impl<Context: SmrContext> DataSyncNode<Context> for NodeState<Context> {
+    type Notification = DataSyncNotification<Context>;
     type Request = DataSyncRequest;
-    type Response = DataSyncResponse;
+    type Response = DataSyncResponse<Context>;
 
-    fn create_notification(&self) -> DataSyncNotification {
+    fn create_notification(&self) -> Self::Notification {
         // Pass the latest (non-empty) commit certificate across epochs.
         let highest_commit_certificate = match self.record_store().highest_commit_certificate() {
             Some(hqc) => Some(hqc.clone()),
@@ -100,8 +97,8 @@ where
     fn handle_notification(
         &mut self,
         smr_context: &mut Context,
-        notification: DataSyncNotification,
-    ) -> AsyncResult<Option<DataSyncRequest>> {
+        notification: Self::Notification,
+    ) -> AsyncResult<Option<Self::Request>> {
         // Whether we should request more data because of a new epoch or missings records.
         let mut should_sync = false;
         // Note that malicious nodes can always lie to make us send a request, but they may as
@@ -112,26 +109,26 @@ where
         if let Some(highest_commit_certificate) = &notification.highest_commit_certificate {
             // Try to insert the QC just in case.
             self.insert_network_record(
-                highest_commit_certificate.epoch_id,
+                highest_commit_certificate.value.epoch_id,
                 Record::QuorumCertificate(highest_commit_certificate.clone()),
                 smr_context,
             );
-            should_sync |= (highest_commit_certificate.epoch_id > self.epoch_id())
-                || (highest_commit_certificate.epoch_id == self.epoch_id()
-                    && highest_commit_certificate.round
+            should_sync |= (highest_commit_certificate.value.epoch_id > self.epoch_id())
+                || (highest_commit_certificate.value.epoch_id == self.epoch_id()
+                    && highest_commit_certificate.value.round
                         > self.record_store().highest_committed_round() + 2);
         }
         if let Some(highest_quorum_certificate) = &notification.highest_quorum_certificate {
             // Try to insert the QC.
             self.insert_network_record(
-                highest_quorum_certificate.epoch_id,
+                highest_quorum_certificate.value.epoch_id,
                 Record::QuorumCertificate(highest_quorum_certificate.clone()),
                 smr_context,
             );
             // Check if we should request more data.
-            should_sync |= (highest_quorum_certificate.epoch_id > self.epoch_id())
-                || (highest_quorum_certificate.epoch_id == self.epoch_id()
-                    && highest_quorum_certificate.round
+            should_sync |= (highest_quorum_certificate.value.epoch_id > self.epoch_id())
+                || (highest_quorum_certificate.value.epoch_id == self.epoch_id()
+                    && highest_quorum_certificate.value.round
                         > self.record_store().highest_quorum_certificate_round());
         }
         // Try to insert the proposed block right away.
@@ -163,15 +160,15 @@ where
         Box::new(future::ready(value))
     }
 
-    fn create_request(&self) -> DataSyncRequest {
+    fn create_request(&self) -> Self::Request {
         self.create_request_internal()
     }
 
     fn handle_request(
         &self,
         _smr_context: &mut Context,
-        request: DataSyncRequest,
-    ) -> AsyncResult<DataSyncResponse> {
+        request: Self::Request,
+    ) -> AsyncResult<Self::Response> {
         let mut records = Vec::new();
         if let Some(store) = self.record_store_at(request.current_epoch) {
             records.push((
@@ -196,7 +193,7 @@ where
     fn handle_response(
         &mut self,
         smr_context: &mut Context,
-        response: DataSyncResponse,
+        response: Self::Response,
         clock: NodeTime,
     ) -> AsyncResult<()> {
         let num_records = response.records.len();
