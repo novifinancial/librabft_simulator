@@ -16,7 +16,8 @@ impl BcsSignable for Bar {}
 #[test]
 fn test_hashing_and_signing() {
     let mut context = SimulatedContext::new(
-        Config::new(Author(0)),
+        Author(0),
+        (),
         /* num_nodes */ 2,
         /* max commands per epoch */ 2,
     );
@@ -79,7 +80,8 @@ impl CommitCertificate<State> for DummyCertificate {
 #[test]
 fn test_simulated_context() {
     let mut context = SimulatedContext::new(
-        Config::new(Author(0)),
+        Author(0),
+        (),
         /* num_nodes */ 2,
         /* max commands per epoch */ 2,
     );

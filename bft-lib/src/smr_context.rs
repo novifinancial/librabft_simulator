@@ -111,7 +111,10 @@ where
 
 /// Public and private cryptographic functions.
 pub trait CryptographicModule {
+    /// How to hash bytes.
     type Hasher: std::io::Write;
+
+    /// The identity (ie. public key) of a node.
     type Author: serde::Serialize
         + serde::de::DeserializeOwned
         + Debug
@@ -123,6 +126,8 @@ pub trait CryptographicModule {
         + Ord
         + Hash
         + 'static; // A public key
+
+    /// The type of signature values.
     type Signature: serde::Serialize
         + serde::de::DeserializeOwned
         + Debug
@@ -134,6 +139,8 @@ pub trait CryptographicModule {
         + Ord
         + Hash
         + 'static;
+
+    /// The type of hash values.
     type HashValue: serde::Serialize
         + serde::de::DeserializeOwned
         + Debug
@@ -164,19 +171,14 @@ pub trait CryptographicModule {
     fn sign(&mut self, hash: Self::HashValue) -> Result<Self::Signature>;
 }
 
-// TODO: some of this belongs to LibraBFT.
-#[derive(PartialEq, PartialOrd, Clone, Debug, Serialize, Deserialize)]
-pub struct Config<Author> {
-    pub author: Author,
-    pub target_commit_interval: Duration,
-    pub delta: Duration,
-    pub gamma: f64,
-    pub lambda: f64,
-}
+// TODO: currently, "Storage" only provides (synchronous) read-only access to initial node configuration.
+// Eventually, this should let node (asynchronously) query and modify an actual (key-value?) database.
+pub trait Storage<State> {
+    // Protocol-specific configuration for each consensus node. Implementations of
+    // SmrContext should be parametric w.r.t this type.
+    type Config;
 
-// TODO: work in progress
-pub trait Storage<Author, State> {
-    fn config(&self) -> &Config<Author>;
+    fn config(&self) -> &Self::Config;
 
     fn state(&self) -> State;
 }
@@ -191,7 +193,7 @@ pub trait SmrContext:
     > + CommandFetcher<<Self as SmrTypes>::Command>
     + StateFinalizer<<Self as SmrTypes>::State>
     + EpochReader<<Self as CryptographicModule>::Author, <Self as SmrTypes>::State>
-    + Storage<<Self as CryptographicModule>::Author, <Self as SmrTypes>::State>
+    + Storage<<Self as SmrTypes>::State>
     // TODO: minimize trait requirements. The following bounds are
     // required to work around the infamous limitations of
     // #[derive(..)] macros on generic types (see
@@ -241,17 +243,5 @@ impl<T, S> SignedValue<T, S> {
     {
         let h = context.hash(&self.value);
         context.verify(self.value.author(), h, self.signature)
-    }
-}
-
-impl<Author> Config<Author> {
-    pub fn new(author: Author) -> Self {
-        Config {
-            author,
-            target_commit_interval: Duration::default(),
-            delta: Duration::default(),
-            gamma: 0.0,
-            lambda: 0.0,
-        }
     }
 }

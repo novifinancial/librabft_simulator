@@ -3,9 +3,12 @@
 
 //! Main executable to run a simulation of LibraBFT v2.
 
-use bft_lib::{base_types::*, simulated_context::SimulatedContext, simulator, smr_context};
+use bft_lib::{base_types::*, simulated_context::SimulatedContext, simulator};
 use clap::{App, Arg};
-use librabft_v2::{data_sync::*, node::NodeState};
+use librabft_v2::{
+    data_sync::*,
+    node::{Config, NodeState},
+};
 use log::{info, warn};
 
 fn main() {
@@ -13,22 +16,21 @@ fn main() {
 
     env_logger::init();
     let context_factory = |author, num_nodes| {
-        let config = smr_context::Config {
-            author,
+        let config = Config {
             target_commit_interval: args.target_commit_interval,
             delta: args.delta,
             gamma: args.gamma,
             lambda: args.lambda,
         };
-        SimulatedContext::new(config, num_nodes, args.commands_per_epoch)
+        SimulatedContext::new(author, config, num_nodes, args.commands_per_epoch)
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
     let mut sim = simulator::Simulator::<
-        NodeState<SimulatedContext>,
-        SimulatedContext,
-        DataSyncNotification<SimulatedContext>,
+        NodeState<SimulatedContext<Config>>,
+        SimulatedContext<Config>,
+        DataSyncNotification<SimulatedContext<Config>>,
         DataSyncRequest,
-        DataSyncResponse<SimulatedContext>,
+        DataSyncResponse<SimulatedContext<Config>>,
     >::new(args.nodes, delay_distribution, context_factory);
     let contexts = sim.loop_until(
         simulator::GlobalTime(args.max_clock),

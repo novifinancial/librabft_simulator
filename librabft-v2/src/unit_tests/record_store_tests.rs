@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use crate::node::Config;
 use bft_lib::{simulated_context::*, smr_context::*};
 
 struct SharedRecordStore {
-    store: RecordStoreState<SimulatedContext>,
-    contexts: HashMap<Author, SimulatedContext>,
+    store: RecordStoreState<SimulatedContext<Config>>,
+    contexts: HashMap<Author, SimulatedContext<Config>>,
 }
 
 impl SharedRecordStore {
@@ -17,7 +18,7 @@ impl SharedRecordStore {
         for i in 0..num_nodes {
             contexts.insert(
                 Author(i),
-                SimulatedContext::new(Config::new(Author(i)), num_nodes, epoch_ttl),
+                SimulatedContext::new(Author(i), Config::default(), num_nodes, epoch_ttl),
             );
         }
         let state = contexts.get(&Author(0)).unwrap().last_committed_state();
