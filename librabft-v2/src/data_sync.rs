@@ -48,7 +48,7 @@ pub struct DataSyncResponse<Context: SmrContext> {
 
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext<Config = Config>,
+    Context: SmrContext<Config = NodeConfig>,
 {
     fn create_request_internal(&self) -> DataSyncRequest {
         DataSyncRequest {
@@ -60,7 +60,7 @@ where
 
 impl<Context> DataSyncNode<Context> for NodeState<Context>
 where
-    Context: SmrContext<Config = Config>,
+    Context: SmrContext<Config = NodeConfig>,
 {
     type Notification = DataSyncNotification<Context>;
     type Request = DataSyncRequest;

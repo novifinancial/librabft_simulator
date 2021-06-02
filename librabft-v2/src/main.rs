@@ -7,16 +7,18 @@ use bft_lib::{base_types::*, simulated_context::SimulatedContext, simulator};
 use clap::{App, Arg};
 use librabft_v2::{
     data_sync::*,
-    node::{Config, NodeState},
+    node::{NodeConfig, NodeState},
 };
 use log::{info, warn};
+
+type Context = SimulatedContext<NodeConfig>;
 
 fn main() {
     let args = get_arguments();
 
     env_logger::init();
     let context_factory = |author, num_nodes| {
-        let config = Config {
+        let config = NodeConfig {
             target_commit_interval: args.target_commit_interval,
             delta: args.delta,
             gamma: args.gamma,
@@ -26,11 +28,11 @@ fn main() {
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
     let mut sim = simulator::Simulator::<
-        NodeState<SimulatedContext<Config>>,
-        SimulatedContext<Config>,
-        DataSyncNotification<SimulatedContext<Config>>,
+        NodeState<Context>,
+        Context,
+        DataSyncNotification<Context>,
         DataSyncRequest,
-        DataSyncResponse<SimulatedContext<Config>>,
+        DataSyncResponse<Context>,
     >::new(args.nodes, delay_distribution, context_factory);
     let contexts = sim.loop_until(
         simulator::GlobalTime(args.max_clock),
