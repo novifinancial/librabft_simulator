@@ -175,7 +175,7 @@ pub struct Config<Author> {
 
 // TODO: work in progress
 pub trait Storage<Author, State> {
-    fn config(&self) -> &Config<Author>;
+    fn config(&self) -> Config<Author>;
 
     fn state(&self) -> State;
 }

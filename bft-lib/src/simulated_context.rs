@@ -277,14 +277,14 @@ impl CryptographicModule for SimulatedContext {
         self.config.author
     }
 
-    fn sign(&mut self, hash: Self::HashValue) -> Result<Self::Signature> {
-        Ok(Signature(self.config.author.0, hash))
+    fn sign(&mut self, hash: Self::HashValue) -> Self::Signature {
+        Signature(self.config.author.0, hash)
     }
 }
 
 impl Storage<Author, State> for SimulatedContext {
-    fn config(&self) -> &Config<Author> {
-        &self.config
+    fn config(&self) -> Config<Author> {
+        self.config.clone()
     }
 
     fn state(&self) -> State {

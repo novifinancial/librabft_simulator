@@ -6,15 +6,60 @@ use crypto::{Digest, PublicKey, Signature, SignatureService};
 use serde::{Deserialize, Serialize};
 use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
+use std::convert::TryInto as _;
 use crate::mempool::MempoolDriver;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Context {
     name: PublicKey,
     committee: Committee,
-    signature_service: SignatureService,
-    mempool_driver: MempoolDriver,
-    max_payload_size: usize
+    _signature_service: SignatureService,
+    _mempool_driver: MempoolDriver,
+    _max_payload_size: usize
+}
+
+// TODO: remove (see comment in SmrContext)
+impl std::cmp::PartialOrd for Context {
+    fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
+        panic!("not implemented");
+    }
+}
+impl std::cmp::Ord for Context {
+    fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
+        panic!("not implemented");
+    }
+}
+impl std::cmp::PartialEq for Context {
+    fn eq(&self, _other: &Self) -> bool {
+        panic!("not implemented");
+    }
+}
+impl Eq for Context {}
+impl std::fmt::Debug for Context {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        panic!("not implemented");
+    }
+}
+impl std::clone::Clone for Context {
+    fn clone(&self) -> Self {
+        panic!("not implemented");
+    }
+}
+impl Serialize for Context {
+    fn serialize<S>(&self, _serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        panic!("not implemented");
+    }
+}
+
+impl<'de> Deserialize<'de> for Context {
+    fn deserialize<D>(_deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        panic!("not implemented");
+    }
 }
 
 impl SmrContext for Context {}
@@ -29,6 +74,7 @@ impl SmrTypes for Context {
     type Command = Command;
 }
 
+// TODO: Make the mempool sync to implement the `CommandFetcher`.
 impl CommandFetcher<Command> for Context {
     fn fetch(&mut self) -> Option<Command> {
         /*
@@ -57,11 +103,11 @@ impl CommandExecutor<Author, State, Command> for Context {
 }
 
 impl StateFinalizer<State> for Context {
-    fn commit(&mut self, state: &State, certificate: Option<&dyn CommitCertificate<State>>) {
+    fn commit(&mut self, _state: &State, _certificate: Option<&dyn CommitCertificate<State>>) {
         // Nothing to do here as we do not execute transactions (the `State` is always `None`).
     }
 
-    fn discard(&mut self, state: &State) {
+    fn discard(&mut self, _state: &State) {
         // Nothing to do here as we do not execute transactions (the `State` is always `None`).
     }
 }
@@ -69,7 +115,7 @@ impl StateFinalizer<State> for Context {
 // TODO: Implement epoch transition. Right now, we alway run within a single epoch.
 impl EpochReader<Author, State> for Context {
     fn read_epoch_id(&self, _state: &State) -> EpochId {
-        EpochId(self.committee.epoch)
+        EpochId(self.committee.epoch as usize)
     }
 
     fn configuration(&self, _state: &State) -> EpochConfiguration<Author> {
@@ -77,7 +123,7 @@ impl EpochReader<Author, State> for Context {
             .committee
             .authorities
             .iter()
-            .map(|name, auth| (name, auth.stake))
+            .map(|(name, auth)| (*name, auth.stake as usize))
             .collect();
         EpochConfiguration::new(voting_rights)
     }
@@ -101,7 +147,7 @@ impl CryptographicModule for Context {
         hash: Self::HashValue,
         signature: Self::Signature,
     ) -> Result<()> {
-        signature.verify(hash, author)
+        signature.verify(&hash, &author).map_err(|e| anyhow::Error::new(e))
     }
 
     fn author(&self) -> Self::Author {
@@ -109,7 +155,7 @@ impl CryptographicModule for Context {
     }
 
     // TODO [issue #8]: Make async to enable HSM implementations.
-    fn sign(&mut self, hash: Self::HashValue) -> Self::Signature {
+    fn sign(&mut self, _hash: Self::HashValue) -> Self::Signature {
         //self.signature_service.request_signature(hash).await
         Signature::default()
     }
@@ -117,9 +163,9 @@ impl CryptographicModule for Context {
 
 // TODO: Is this the right interface for a real (networked) implementation?
 impl Storage<Author, State> for Context {
-    fn config(&self) -> &Config<Author> {
-       & Config {
-            author: self.name,
+    fn config(&self) -> Config<Author> {
+        Config {
+            author: self.name.clone(),
             target_commit_interval: Duration::default(),
             delta: Duration::default(),
             gamma: 0.0,

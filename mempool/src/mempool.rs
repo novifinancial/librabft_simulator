@@ -11,9 +11,9 @@ use network::{NetReceiver, NetSender};
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-#[cfg(test)]
-#[path = "tests/mempool_tests.rs"]
-pub mod mempool_tests;
+//#[cfg(test)]
+//#[path = "tests/mempool_tests.rs"]
+//pub mod mempool_tests;
 
 pub struct Mempool;
 

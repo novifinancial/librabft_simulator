@@ -57,7 +57,7 @@ async fn end_to_end() {
                 tx_consensus_mempool.send(message).await.unwrap();
                 match receiver.await {
                     Ok(PayloadStatus::Accept) => assert!(true),
-                    _ => assert!(false),
+                    _ => assert!(false, "Unexpected payload status"),
                 }
             })
         })

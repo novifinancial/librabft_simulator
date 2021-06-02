@@ -1,13 +1,13 @@
 use crate::config::Committee;
 use crate::core::RoundNumber;
-use crate::mempool::{ConsensusMempoolMessage, PayloadStatus};
+//use crate::mempool::{ConsensusMempoolMessage, PayloadStatus};
 use crate::messages::{Block, Timeout, Vote, QC};
 use crypto::Hash as _;
 use crypto::{generate_keypair, Digest, PublicKey, SecretKey, Signature};
 use rand::rngs::StdRng;
-use rand::RngCore as _;
+//use rand::RngCore as _;
 use rand::SeedableRng as _;
-use tokio::sync::mpsc::Receiver;
+//use tokio::sync::mpsc::Receiver;
 
 // Fixture.
 pub fn keys() -> Vec<(PublicKey, SecretKey)> {
@@ -184,6 +184,7 @@ pub fn chain(keys: Vec<(PublicKey, SecretKey)>) -> Vec<Block> {
 }
 
 // Fixture
+/*
 pub struct MockMempool;
 
 impl MockMempool {
@@ -206,3 +207,4 @@ impl MockMempool {
         });
     }
 }
+*/

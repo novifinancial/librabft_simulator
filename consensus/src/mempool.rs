@@ -19,7 +19,6 @@ pub enum ConsensusMempoolMessage {
     Cleanup(Vec<Digest>, RoundNumber),
 }
 
-#[derive(Clone, Debug)]
 pub struct MempoolDriver {
     mempool_channel: Sender<ConsensusMempoolMessage>,
 }
