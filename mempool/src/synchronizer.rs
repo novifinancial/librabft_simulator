@@ -79,7 +79,7 @@ impl Synchronizer {
                                     .expect("Failed to measure time")
                                     .as_millis();
                                 for x in &missing {
-                                    requests.insert(x.clone(), (round, now));
+                                    requests.insert(*x, (round, now));
                                 }
 
                                 let message = MempoolMessage::PayloadRequest(missing.clone(), name);
@@ -199,7 +199,7 @@ impl Synchronizer {
         for digest in &block.payload {
             if self.store.read(digest.to_vec()).await?.is_none() {
                 debug!("Requesting sync for payload {}", digest);
-                missing.insert(digest.clone());
+                missing.insert(*digest);
             }
         }
 

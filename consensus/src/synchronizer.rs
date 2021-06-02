@@ -49,17 +49,18 @@ impl Synchronizer {
                 tokio::select! {
                     Some(block) = rx_inner.recv() => {
                         if pending.insert(block.digest()) {
-                            let parent = block.parent().clone();
-                            let fut = Self::waiter(store_copy.clone(), parent.clone(), block);
+                            let parent = *block.parent();
+                            let fut = Self::waiter(store_copy.clone(), parent, block);
                             waiting.push(fut);
 
+                            #[allow(clippy::map_entry)]
                             if !requests.contains_key(&parent){
                                 debug!("Requesting sync for block {}", parent);
                                 let now = SystemTime::now()
                                     .duration_since(UNIX_EPOCH)
                                     .expect("Failed to measure time")
                                     .as_millis();
-                                requests.insert(parent.clone(), now);
+                                requests.insert(parent, now);
                                 let message = ConsensusMessage::SyncRequest(parent, name);
                                 Self::transmit(&message, &name, None, &network_channel, &committee).await.unwrap();
                             }
@@ -85,7 +86,7 @@ impl Synchronizer {
                                 .as_millis();
                             if timestamp + (sync_retry_delay as u128) < now {
                                 debug!("Requesting sync for block {} (retry)", digest);
-                                let message = ConsensusMessage::SyncRequest(digest.clone(), name);
+                                let message = ConsensusMessage::SyncRequest(*digest, name);
                                 Self::transmit(&message, &name, None, &network_channel, &committee).await.unwrap();
                             }
                         }

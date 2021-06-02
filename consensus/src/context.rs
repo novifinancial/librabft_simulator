@@ -147,7 +147,7 @@ impl CryptographicModule for Context {
         hash: Self::HashValue,
         signature: Self::Signature,
     ) -> Result<()> {
-        signature.verify(&hash, &author).map_err(|e| anyhow::Error::new(e))
+        signature.verify(&hash, &author).map_err(anyhow::Error::new)
     }
 
     fn author(&self) -> Self::Author {
@@ -165,7 +165,7 @@ impl CryptographicModule for Context {
 impl Storage<Author, State> for Context {
     fn config(&self) -> Config<Author> {
         Config {
-            author: self.name.clone(),
+            author: self.name,
             target_commit_interval: Duration::default(),
             delta: Duration::default(),
             gamma: 0.0,
