@@ -16,7 +16,7 @@ pub mod crypto_tests;
 
 pub type CryptoError = ed25519::Error;
 
-#[derive(Hash, PartialEq, Default, Eq, Clone, Deserialize, Serialize)]
+#[derive(Hash, PartialEq, Default, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd, Copy)]
 pub struct Digest(pub [u8; 32]);
 
 impl Digest {
@@ -163,7 +163,7 @@ where
     (public, secret)
 }
 
-#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug, Hash, Copy, PartialOrd, Ord, Eq, PartialEq)]
 pub struct Signature {
     part1: [u8; 32],
     part2: [u8; 32],

@@ -11,6 +11,7 @@ mod mempool;
 mod messages;
 mod synchronizer;
 mod timer;
+mod context;
 
 #[cfg(test)]
 #[path = "tests/common.rs"]
