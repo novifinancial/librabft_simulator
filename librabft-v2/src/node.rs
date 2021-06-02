@@ -205,7 +205,7 @@ where
     Context: SmrContext,
 {
     fn load_node(context: &mut Context, node_time: NodeTime) -> AsyncResult<Self> {
-        let config = context.config().clone();
+        let config = context.config();
         let state = context.state();
         let node = NodeState::new(config, state, node_time, &*context);
         Box::new(future::ready(node))
