@@ -7,11 +7,11 @@ use crate::{pacemaker::*, record::*, record_store::*};
 use bft_lib::{
     base_types::*,
     interfaces::{ConsensusNode, NodeUpdateActions},
-    smr_context,
     smr_context::SmrContext,
 };
 use futures::future;
 use log::debug;
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::{max, min},
     collections::HashMap,
@@ -70,12 +70,23 @@ impl CommitTracker {
     }
 }
 
+// Persistent configuration.
+#[derive(PartialEq, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Default))]
+pub struct NodeConfig {
+    pub target_commit_interval: Duration,
+    pub delta: Duration,
+    pub gamma: f64,
+    pub lambda: f64,
+}
+
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext,
+    Context: SmrContext<Config = NodeConfig>,
 {
     fn new(
-        config: smr_context::Config<Context::Author>,
+        author: Context::Author,
+        config: NodeConfig,
         initial_state: Context::State,
         node_time: NodeTime,
         context: &Context,
@@ -98,7 +109,7 @@ where
                 config.lambda,
             ),
             epoch_id,
-            local_author: config.author,
+            local_author: author,
             latest_voted_round: Round(0),
             locked_round: Round(0),
             latest_query_all_time: node_time,
@@ -202,12 +213,13 @@ impl<Context: SmrContext> NodeState<Context> {
 // -- BEGIN FILE consensus_node_impl --
 impl<Context> ConsensusNode<Context> for NodeState<Context>
 where
-    Context: SmrContext,
+    Context: SmrContext<Config = NodeConfig>,
 {
     fn load_node(context: &mut Context, node_time: NodeTime) -> AsyncResult<Self> {
+        let author = context.author();
         let config = context.config().clone();
         let state = context.state();
-        let node = NodeState::new(config, state, node_time, &*context);
+        let node = NodeState::new(author, config, state, node_time, &*context);
         Box::new(future::ready(node))
     }
 
@@ -287,7 +299,7 @@ where
 // -- BEGIN FILE process_commits --
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext,
+    Context: SmrContext<Config = NodeConfig>,
 {
     pub(crate) fn process_commits(&mut self, context: &mut Context) {
         // For all commits that have not been processed yet, according to the commit tracker..

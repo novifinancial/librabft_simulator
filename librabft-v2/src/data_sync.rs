@@ -46,7 +46,10 @@ pub struct DataSyncResponse<Context: SmrContext> {
 }
 // -- END FILE --
 
-impl<Context: SmrContext> NodeState<Context> {
+impl<Context> NodeState<Context>
+where
+    Context: SmrContext<Config = NodeConfig>,
+{
     fn create_request_internal(&self) -> DataSyncRequest {
         DataSyncRequest {
             current_epoch: self.epoch_id(),
@@ -55,7 +58,10 @@ impl<Context: SmrContext> NodeState<Context> {
     }
 }
 
-impl<Context: SmrContext> DataSyncNode<Context> for NodeState<Context> {
+impl<Context> DataSyncNode<Context> for NodeState<Context>
+where
+    Context: SmrContext<Config = NodeConfig>,
+{
     type Notification = DataSyncNotification<Context>;
     type Request = DataSyncRequest;
     type Response = DataSyncResponse<Context>;

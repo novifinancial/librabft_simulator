@@ -2,21 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use bft_lib::{
-    simulated_context::*,
-    smr_context::{Config, CryptographicModule},
-};
+use crate::node::NodeConfig;
+use bft_lib::{simulated_context::*, smr_context::CryptographicModule};
 
 #[test]
 fn test_block_signing() {
     let mut context = SimulatedContext::new(
-        Config::new(Author(2)),
+        Author(2),
+        NodeConfig::default(),
         /* not used */ 0,
         /* not used */ 0,
     );
     let b = SignedValue::make(
         &mut context,
-        Block_::<SimulatedContext> {
+        Block_::<SimulatedContext<NodeConfig>> {
             command: Command {
                 proposer: Author(1),
                 index: 2,
@@ -34,7 +33,7 @@ fn test_block_signing() {
 
     let b2 = SignedValue::make(
         &mut context,
-        Block_::<SimulatedContext> {
+        Block_::<SimulatedContext<NodeConfig>> {
             command: Command {
                 proposer: Author(3),
                 index: 2,
