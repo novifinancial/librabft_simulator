@@ -2,14 +2,14 @@
 
 #[macro_use]
 mod error;
-pub mod aggregator; // TODO: This module can be private.
+//pub mod aggregator; // TODO: This module can be private.
 mod config;
 mod consensus;
 pub mod core; // TODO: This module can be private.
 mod leader;
 mod mempool;
 mod messages;
-mod synchronizer;
+//mod synchronizer;
 mod timer;
 mod context;
 

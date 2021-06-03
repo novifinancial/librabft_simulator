@@ -4,12 +4,16 @@ use crate::error::ConsensusResult;
 use crate::leader::LeaderElector;
 use crate::mempool::{ConsensusMempoolMessage, MempoolDriver};
 use crate::messages::Block;
-use crate::synchronizer::Synchronizer;
+//use crate::synchronizer::Synchronizer;
 use crypto::{PublicKey, SignatureService};
 use log::info;
 use network::{NetReceiver, NetSender};
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use crate::context::Context;
+use bft_lib::interfaces::ConsensusNode;
+use bft_lib::smr_context::SmrContext;
+use serde::de::DeserializeOwned;
 
 // TODO: Temporarily disable tests.
 // #[cfg(test)]
@@ -18,9 +22,11 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 pub struct Consensus;
 
-impl Consensus {
+impl Consensus 
+{
     #[allow(clippy::too_many_arguments)]
-    pub async fn run(
+    pub async fn run<Node>
+    (
         name: PublicKey,
         committee: Committee,
         parameters: Parameters,
@@ -30,7 +36,11 @@ impl Consensus {
         rx_core: Receiver<ConsensusMessage>,
         tx_consensus_mempool: Sender<ConsensusMempoolMessage>,
         tx_commit: Sender<Block>,
-    ) -> ConsensusResult<()> {
+    ) -> ConsensusResult<()> 
+    where
+        Node: ConsensusNode<Context> + Send + 'static,
+        Context: SmrContext,
+    {
         // NOTE: The following log entries are used to compute performance.
         info!(
             "Consensus timeout delay set to {} ms",
@@ -66,12 +76,14 @@ impl Consensus {
             network_sender.run().await;
         });
 
+        
         // The leader elector algorithm.
         let leader_elector = LeaderElector::new(committee.clone());
 
         // Make the mempool driver which will mediate our requests to the mempool.
         let mempool_driver = MempoolDriver::new(tx_consensus_mempool);
 
+        /*
         // Make the synchronizer. This instance runs in a background thread
         // and asks other nodes for any block that we may be missing.
         let synchronizer = Synchronizer::new(
@@ -83,8 +95,9 @@ impl Consensus {
             parameters.sync_retry_delay,
         )
         .await;
+        */
 
-        let mut core = Core::new(
+        let mut core = Core::<Node>::new(
             name,
             committee,
             parameters,
@@ -92,7 +105,7 @@ impl Consensus {
             store,
             leader_elector,
             mempool_driver,
-            synchronizer,
+            //synchronizer,
             /* core_channel */ rx_core,
             /* network_channel */ tx_network,
             /* commit_channel */ tx_commit,

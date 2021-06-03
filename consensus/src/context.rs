@@ -17,6 +17,24 @@ pub struct Context {
     _max_payload_size: usize
 }
 
+impl Context {
+    pub fn new(
+        name: PublicKey,
+        committee: Committee,
+        signature_service: SignatureService,
+        mempool_driver: MempoolDriver,
+        max_payload_size: usize
+    ) -> Self {
+        Self {
+            name,
+            committee,
+            _signature_service: signature_service,
+            _mempool_driver: mempool_driver,
+            _max_payload_size: max_payload_size
+        }
+    }
+}
+
 // TODO: remove (see comment in SmrContext)
 impl std::cmp::PartialOrd for Context {
     fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {

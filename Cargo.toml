@@ -5,8 +5,8 @@ members = [
         "crypto",
         "store",
         "network",
-        "mempool",
         "consensus",
+        "mempool",
         "node"
 ]
 
