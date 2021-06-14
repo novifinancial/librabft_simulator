@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 mod data_sync_tests;
 
 // -- BEGIN FILE data_sync --
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct DataSyncNotification<Context: SmrContext> {
     /// Current epoch identifier.
     current_epoch: EpochId,
@@ -38,7 +38,7 @@ pub struct DataSyncNotification<Context: SmrContext> {
     proposed_block: Option<Block<Context>>,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct DataSyncRequest {
     /// Current epoch identifier.
     current_epoch: EpochId,
@@ -46,7 +46,7 @@ pub struct DataSyncRequest {
     known_quorum_certificates: BTreeSet<Round>,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct DataSyncResponse<Context: SmrContext> {
     /// Current epoch identifier.
     current_epoch: EpochId,

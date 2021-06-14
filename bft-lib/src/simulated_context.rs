@@ -17,16 +17,17 @@ mod simulated_context_tests;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct Author(pub usize);
-#[derive(
-    Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize, Default,
-)]
+
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Serialize, Deserialize, Default)]
 pub struct Signature(pub usize, pub u64);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct HashValue(pub u64);
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct State(pub u64);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug, Serialize, Deserialize)]
+
+#[derive(Eq, PartialEq, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct Command {
     pub proposer: Author,
     pub index: usize,
@@ -69,7 +70,7 @@ impl SimulatedLedgerState {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimulatedContext<Config> {
     author: Author,
     config: Config,
@@ -79,25 +80,6 @@ pub struct SimulatedContext<Config> {
     last_committed_ledger_state: SimulatedLedgerState,
     pending_ledger_states: HashMap<State, SimulatedLedgerState>,
 }
-
-// TODO: remove (see comment in SmrContext)
-impl<Config> std::cmp::PartialOrd for SimulatedContext<Config> {
-    fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
-        panic!("not implemented");
-    }
-}
-impl<Config> std::cmp::Ord for SimulatedContext<Config> {
-    fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
-        panic!("not implemented");
-    }
-}
-impl<Config> std::cmp::PartialEq for SimulatedContext<Config> {
-    fn eq(&self, _other: &Self) -> bool {
-        panic!("not implemented");
-    }
-}
-
-impl<Config> std::cmp::Eq for SimulatedContext<Config> {}
 
 impl<Config> SimulatedContext<Config> {
     pub fn new(
@@ -295,4 +277,4 @@ impl<Config> Storage<State> for SimulatedContext<Config> {
     }
 }
 
-impl<Config> SmrContext for SimulatedContext<Config> where Config: Clone + Debug + 'static {}
+impl<Config> SmrContext for SimulatedContext<Config> where Config: Eq + Clone + Debug + 'static {}
