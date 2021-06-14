@@ -11,7 +11,6 @@ use bft_lib::{
 };
 use futures::future;
 use log::debug;
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::{max, min},
     collections::HashMap,
@@ -70,14 +69,15 @@ impl CommitTracker {
     }
 }
 
-// Persistent configuration.
-#[derive(PartialEq, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+/// Persistent configuration of LibraBFTv2 node.
+/// We avoid floats to make sure `Eq` is implemented.
+#[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(test, derive(Default))]
 pub struct NodeConfig {
     pub target_commit_interval: Duration,
     pub delta: Duration,
-    pub gamma: f64,
-    pub lambda: f64,
+    pub gamma_times_100: u32,
+    pub lambda_times_100: u32,
 }
 
 impl<Context> NodeState<Context>
@@ -99,15 +99,16 @@ where
             epoch_id,
             context.configuration(&initial_state),
         );
+        let pacemaker = PacemakerState::new(
+            epoch_id,
+            node_time,
+            config.delta,
+            config.gamma_times_100 as f64 / 100.,
+            config.lambda_times_100 as f64 / 100.,
+        );
         NodeState {
             record_store,
-            pacemaker: PacemakerState::new(
-                epoch_id,
-                node_time,
-                config.delta,
-                config.gamma,
-                config.lambda,
-            ),
+            pacemaker,
             epoch_id,
             local_author: author,
             latest_voted_round: Round(0),

@@ -29,8 +29,8 @@ fn make_simulator(
         let config = NodeConfig {
             target_commit_interval: Duration(100000),
             delta: Duration(20),
-            gamma: 2.0,
-            lambda: 0.5,
+            gamma_times_100: 200,
+            lambda_times_100: 50,
         };
         SimulatedContext::new(author, config, num_nodes, 30000)
     };
