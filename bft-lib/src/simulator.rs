@@ -17,15 +17,67 @@ use std::collections::{BinaryHeap, HashSet};
 #[path = "unit_tests/simulator_tests.rs"]
 mod simulator_tests;
 
-// TODO: the notion of round is specific to some BFT protocols => rename and/or generalize?
-/// Trait to help visualizing rounds in a simulator.
-pub trait ActiveRound {
-    fn active_round(&self) -> Round;
+/// Simulate the execution of a consensus protocol (including
+/// configuration changes) over a randomized network.
+///
+/// TODO: simulate changing network conditions, addition/removal/disconnection of nodes, etc.
+pub struct Simulator<Node, Context, Notification, Request, Response> {
+    clock: GlobalTime,
+    network_delay: RandomDelay,
+    pending_events: PendingEvents<Notification, Request, Response>,
+    nodes: Vec<SimulatedNode<Node, Context>>,
 }
 
 /// Simulated global clock
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Debug)]
 pub struct GlobalTime(pub i64);
+
+#[derive(Copy, Clone)]
+pub struct RandomDelay {
+    distribution: LogNormal<f64>,
+}
+
+#[derive(Eq, PartialEq, Ord, PartialOrd)]
+struct ScheduledEvent<Notification, Request, Response>(
+    std::cmp::Reverse<GlobalTime>,
+    Event<Notification, Request, Response>,
+);
+
+#[derive(Debug)]
+pub struct SimulatedNode<Node, Context> {
+    startup_time: GlobalTime,
+    ignore_scheduled_updates_until: GlobalTime,
+    node: Node,
+    context: Context,
+}
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub enum Event<Notification, Request, Response> {
+    DataSyncNotifyEvent {
+        receiver: Author,
+        sender: Author,
+        notification: Notification,
+    },
+    DataSyncRequestEvent {
+        receiver: Author,
+        sender: Author,
+        request: Request,
+    },
+    DataSyncResponseEvent {
+        receiver: Author,
+        sender: Author,
+        response: Response,
+    },
+    UpdateTimerEvent {
+        author: Author,
+    },
+}
+
+// TODO: the notion of round is specific to some BFT protocols => rename and/or generalize?
+/// Trait to help visualizing rounds in a simulator.
+pub trait ActiveRound {
+    fn active_round(&self) -> Round;
+}
 
 impl std::ops::Add<Duration> for GlobalTime {
     type Output = GlobalTime;
@@ -33,11 +85,6 @@ impl std::ops::Add<Duration> for GlobalTime {
     fn add(self, rhs: Duration) -> Self::Output {
         GlobalTime(self.0 + rhs.0)
     }
-}
-
-#[derive(Copy, Clone)]
-pub struct RandomDelay {
-    distribution: LogNormal<f64>,
 }
 
 impl RandomDelay {
@@ -66,44 +113,8 @@ impl GlobalTime {
     }
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
-pub enum Event<Notification, Request, Response> {
-    DataSyncNotifyEvent {
-        receiver: Author,
-        sender: Author,
-        notification: Notification,
-    },
-    DataSyncRequestEvent {
-        receiver: Author,
-        sender: Author,
-        request: Request,
-    },
-    DataSyncResponseEvent {
-        receiver: Author,
-        sender: Author,
-        response: Response,
-    },
-    UpdateTimerEvent {
-        author: Author,
-    },
-}
-
-#[derive(Eq, PartialEq, Ord, PartialOrd)]
-struct ScheduledEvent<Notification, Request, Response>(
-    std::cmp::Reverse<GlobalTime>,
-    Event<Notification, Request, Response>,
-);
-
 type PendingEvents<Notification, Request, Response> =
     BinaryHeap<ScheduledEvent<Notification, Request, Response>>;
-
-#[derive(Debug)]
-pub struct SimulatedNode<Node, Context> {
-    startup_time: GlobalTime,
-    ignore_scheduled_updates_until: GlobalTime,
-    node: Node,
-    context: Context,
-}
 
 impl<Node, Context> SimulatedNode<Node, Context>
 where
@@ -123,17 +134,6 @@ where
     fn active_round(&self) -> Round {
         self.node.active_round()
     }
-}
-
-/// Simulate the execution of a consensus protocol (including
-/// configuration changes) over a randomized network.
-///
-/// TODO: simulate changing network conditions, addition/removal/disconnection of nodes, etc.
-pub struct Simulator<Node, Context, Notification, Request, Response> {
-    clock: GlobalTime,
-    network_delay: RandomDelay,
-    pending_events: PendingEvents<Notification, Request, Response>,
-    nodes: Vec<SimulatedNode<Node, Context>>,
 }
 
 impl<Node, Context, Notification, Request, Response>
