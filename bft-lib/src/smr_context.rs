@@ -60,7 +60,7 @@ pub trait StateFinalizer<State> {
 }
 
 /// How to read epoch ids and configuration from a state.
-pub trait EpochReader<Author, State> {
+pub trait EpochReader<Author: Hash, State> {
     /// Read the id of the epoch in a state.
     fn read_epoch_id(&self, state: &State) -> EpochId;
 
@@ -97,7 +97,7 @@ pub trait CryptographicModule {
     type Hasher: std::io::Write;
 
     /// The identity (ie. public key) of a node.
-    type Author: Serialize + DeserializeOwned + Debug + Copy + Eq + Ord + Hash + 'static;
+    type Author: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
 
     /// The type of signature values.
     type Signature: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
