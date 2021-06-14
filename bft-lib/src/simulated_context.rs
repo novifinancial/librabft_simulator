@@ -6,7 +6,7 @@ use anyhow::ensure;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
+    collections::{hash_map::DefaultHasher, HashMap},
     fmt::Debug,
     hash::{Hash, Hasher},
 };
@@ -15,7 +15,7 @@ use std::{
 #[path = "unit_tests/simulated_context_tests.rs"]
 mod simulated_context_tests;
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct Author(pub usize);
 
 #[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Serialize, Deserialize, Default)]
@@ -212,9 +212,9 @@ impl<Config> EpochReader<Author, State> for SimulatedContext<Config> {
 
     fn configuration(&self, _state: &State) -> EpochConfiguration<Author> {
         // We do not simulate changes in the voting rights yet.
-        let mut voting_rights = BTreeMap::new();
+        let mut voting_rights = Vec::new();
         for index in 0..self.num_nodes {
-            voting_rights.insert(Author(index), 1);
+            voting_rights.push((Author(index), 1));
         }
         EpochConfiguration::new(voting_rights)
     }
