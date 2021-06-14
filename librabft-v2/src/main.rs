@@ -16,20 +16,20 @@ type Context = SimulatedContext<NodeConfig>;
 
 fn main() {
     let args = get_arguments();
-
     env_logger::init();
+    let seed = args.seed.unwrap_or_else(|| rand::thread_rng().gen());
+    warn!("seed: {}", seed);
     let context_factory = |author, num_nodes| {
         let config = NodeConfig {
             target_commit_interval: args.target_commit_interval,
             delta: args.delta,
-            gamma: args.gamma,
-            lambda: args.lambda,
+            gamma_times_100: (args.gamma * 100.) as u32,
+            lambda_times_100: (args.lambda * 100.) as u32,
         };
+        warn!("config for {:?}: {:?}", author, config);
         SimulatedContext::new(author, config, num_nodes, args.commands_per_epoch)
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
-    let seed = args.seed.unwrap_or_else(|| rand::thread_rng().gen());
-    warn!("seed: {}", seed);
     let mut sim = simulator::Simulator::<
         NodeState<Context>,
         Context,

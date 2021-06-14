@@ -295,7 +295,4 @@ impl<Config> Storage<State> for SimulatedContext<Config> {
     }
 }
 
-impl<Config> SmrContext for SimulatedContext<Config> where
-    Config: Serialize + serde::de::DeserializeOwned + Clone + Debug + 'static
-{
-}
+impl<Config> SmrContext for SimulatedContext<Config> where Config: Clone + Debug + 'static {}
