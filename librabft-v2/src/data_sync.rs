@@ -4,30 +4,41 @@
 use crate::{node::*, record::*};
 use bft_lib::{base_types::*, interfaces::DataSyncNode, smr_context::SmrContext};
 use futures::future;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "simulator"))]
 #[path = "unit_tests/data_sync_tests.rs"]
 mod data_sync_tests;
 
 // -- BEGIN FILE data_sync --
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone, Serialize, Deserialize)]
 pub struct DataSyncNotification<Context: SmrContext> {
     /// Current epoch identifier.
     current_epoch: EpochId,
     /// Tail QC of the highest commit rule.
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     highest_commit_certificate: Option<QuorumCertificate<Context>>,
     /// Highest QC.
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     highest_quorum_certificate: Option<QuorumCertificate<Context>>,
     /// Timeouts in the highest TC, then at the current round, if any.
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     timeouts: Vec<Timeout<Context>>,
     /// Sender's vote at the current round, if any (meant for the proposer).
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     current_vote: Option<Vote<Context>>,
     /// Known proposed block at the current round, if any.
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     proposed_block: Option<Block<Context>>,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone, Serialize, Deserialize)]
 pub struct DataSyncRequest {
     /// Current epoch identifier.
     current_epoch: EpochId,
@@ -35,13 +46,15 @@ pub struct DataSyncRequest {
     known_quorum_certificates: BTreeSet<Round>,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Serialize, Deserialize)]
 pub struct DataSyncResponse<Context: SmrContext> {
     /// Current epoch identifier.
     current_epoch: EpochId,
     /// Records for the receiver to insert, for each epoch, in the given order.
     /// Epochs older than the receiver's current epoch will be skipped, as well as chains
     /// of records ending with QC known to the receiver.
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     records: Vec<(EpochId, Vec<Record<Context>>)>,
 }
 // -- END FILE --
