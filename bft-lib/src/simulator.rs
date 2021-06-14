@@ -10,11 +10,10 @@ use crate::{
 };
 use futures::executor::block_on;
 use log::{debug, trace};
+use rand::{prelude::SliceRandom, SeedableRng};
 use rand_distr::{Distribution, LogNormal};
-use std::{
-    collections::{BinaryHeap, HashSet},
-    fmt::Debug,
-};
+use rand_xoshiro::Xoshiro256StarStar;
+use std::{collections::BinaryHeap, fmt::Debug};
 
 #[cfg(test)]
 #[path = "unit_tests/simulator_tests.rs"]
@@ -30,6 +29,7 @@ pub struct Simulator<Node, Context, Notification, Request, Response> {
     pending_events: BinaryHeap<ScheduledEvent<Event<Notification, Request, Response>>>,
     nodes: Vec<SimulatedNode<Node, Context>>,
     event_count: usize,
+    rng: Xoshiro256StarStar,
 }
 
 /// Simulated global clock
@@ -107,8 +107,13 @@ impl RandomDelay {
 }
 
 impl GlobalTime {
-    fn add_delay(self, delay: RandomDelay) -> GlobalTime {
-        let v = delay.distribution.sample(&mut rand::thread_rng());
+    fn add_delay<R: rand_core::RngCore + ?Sized>(
+        self,
+        rng: &mut R,
+        delay: RandomDelay,
+    ) -> GlobalTime {
+        let v = delay.distribution.sample(rng);
+        trace!("Picked random delay: {}", v);
         GlobalTime(self.0 + (v as i64))
     }
 
@@ -193,6 +198,7 @@ where
     Response: Debug,
 {
     pub fn new<F>(
+        rng_seed: u64,
         num_nodes: usize,
         network_delay: RandomDelay,
         context_factory: F,
@@ -203,11 +209,12 @@ where
         let clock = GlobalTime(0);
         let mut pending_events = BinaryHeap::new();
         let mut event_count = 0;
+        let mut rng = rand_xoshiro::Xoshiro256StarStar::seed_from_u64(rng_seed);
         let nodes = (0..num_nodes)
             .map(|index| {
                 let author = Author(index);
                 let mut context = context_factory(author, num_nodes);
-                let startup_time = clock.add_delay(network_delay) + Duration(1);
+                let startup_time = clock.add_delay(&mut rng, network_delay) + Duration(1);
                 let node_time = NodeTime(0);
                 let scheduled_time = GlobalTime::from_node_time(node_time, startup_time);
                 let event = Event::UpdateTimerEvent { author };
@@ -237,6 +244,7 @@ where
             pending_events,
             nodes,
             event_count,
+            rng,
         }
     }
 
@@ -255,7 +263,7 @@ where
     }
 
     fn schedule_network_event(&mut self, event: Event<Notification, Request, Response>) {
-        let scheduled_time = self.clock.add_delay(self.network_delay);
+        let scheduled_time = self.clock.add_delay(&mut self.rng, self.network_delay);
         self.schedule_event(scheduled_time, event);
     }
 }
@@ -313,20 +321,24 @@ where
         let event = Event::UpdateTimerEvent { author };
         self.schedule_event(new_scheduled_time, event);
         // Schedule sending notifications.
-        let mut receivers = HashSet::new();
-        for node in actions.should_send {
-            receivers.insert(node);
-        }
+        let mut receivers = Vec::new();
         if actions.should_broadcast {
             // TODO: broadcasting to all (past and future) nodes in the network is not entirely
             // realistic. The pseudo-code should probably use `actions.should_send` instead to
             // broadcast only to the nodes that a sender consider part of the epoch.
             for index in 0..self.nodes.len() {
                 if index != author.0 {
-                    receivers.insert(Author(index));
+                    receivers.push(Author(index));
+                }
+            }
+        } else {
+            for receiver in actions.should_send {
+                if receiver != author {
+                    receivers.push(receiver);
                 }
             }
         }
+        receivers.shuffle(&mut self.rng);
         let notification = self.simulated_node(author).node.create_notification();
         for receiver in receivers {
             self.schedule_network_event(Event::DataSyncNotifyEvent {
@@ -336,16 +348,18 @@ where
             });
         }
         // Schedule sending requests.
-        let mut senders = HashSet::new();
+        let mut senders = Vec::new();
         if actions.should_query_all {
             // TODO: similarly `should_query_all` is probably too coarse.
             for index in 0..self.nodes.len() {
                 if index != author.0 {
-                    senders.insert(Author(index));
+                    senders.push(Author(index));
                 }
             }
         }
         let request = self.simulated_node(author).node.create_request();
+        let mut senders = senders.into_iter().collect::<Vec<_>>();
+        senders.shuffle(&mut self.rng);
         for sender in senders {
             self.schedule_network_event(Event::DataSyncRequestEvent {
                 receiver: author,
