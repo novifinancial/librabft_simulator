@@ -10,6 +10,7 @@ use librabft_v2::{
     node::{NodeConfig, NodeState},
 };
 use log::{info, warn};
+use rand::Rng;
 
 type Context = SimulatedContext<NodeConfig>;
 
@@ -27,13 +28,15 @@ fn main() {
         SimulatedContext::new(author, config, num_nodes, args.commands_per_epoch)
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
+    let seed = args.seed.unwrap_or_else(|| rand::thread_rng().gen());
+    warn!("seed: {}", seed);
     let mut sim = simulator::Simulator::<
         NodeState<Context>,
         Context,
         DataSyncNotification<Context>,
         DataSyncRequest,
         DataSyncResponse<Context>,
-    >::new(args.nodes, delay_distribution, context_factory);
+    >::new(seed, args.nodes, delay_distribution, context_factory);
     let contexts = sim.loop_until(
         simulator::GlobalTime(args.max_clock),
         args.output_data_files,
@@ -52,6 +55,7 @@ struct CliArguments {
     max_clock: i64,
     mean: f64,
     variance: f64,
+    seed: Option<u64>,
     nodes: usize,
     commands_per_epoch: usize,
     target_commit_interval: Duration,
@@ -88,6 +92,13 @@ fn get_arguments() -> CliArguments {
                 .long("nodes")
                 .help("The number of nodes to simulate")
                 .default_value("3"),
+        )
+        .arg(
+            Arg::with_name("seed")
+                .long("seed")
+                .value_name("SEED")
+                .takes_value(true)
+                .help("Seed for the PRNG"),
         )
         .arg(
             Arg::with_name("commands_per_epoch")
@@ -137,6 +148,7 @@ fn get_arguments() -> CliArguments {
             .parse::<f64>()
             .unwrap(),
         nodes: matches.value_of("nodes").unwrap().parse::<usize>().unwrap(),
+        seed: matches.value_of("seed").map(|x| x.parse::<u64>().unwrap()),
         commands_per_epoch: matches
             .value_of("commands_per_epoch")
             .unwrap()
