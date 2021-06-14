@@ -16,16 +16,20 @@ mod record_tests;
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum Record<Context: SmrContext> {
     /// Proposed block, containing a command, e.g. a set of Libra transactions.
-    #[serde(bound(deserialize = "Block<Context>: Deserialize<'de>"))]
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     Block(Block<Context>),
     /// A single vote on a proposed block and its execution state.
-    #[serde(bound(deserialize = "Vote<Context>: Deserialize<'de>"))]
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     Vote(Vote<Context>),
     /// A quorum of votes related to a given block and execution state.
-    #[serde(bound(deserialize = "QuorumCertificate<Context>: Deserialize<'de>"))]
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     QuorumCertificate(QuorumCertificate<Context>),
     /// A signal that a particular round of an epoch has reached a timeout.
-    #[serde(bound(deserialize = "Timeout<Context>: Deserialize<'de>"))]
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     Timeout(Timeout<Context>),
 }
 

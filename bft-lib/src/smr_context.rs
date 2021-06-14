@@ -200,7 +200,7 @@ pub trait SmrContext:
     // https://github.com/rust-lang/rust/issues/26925 ). The real fix
     // is to implement traits manually in librabft_v2/record.rs (and
     // probably in other places).
-    + Eq + PartialEq + Ord + PartialOrd + Clone + Debug + serde::Serialize + serde::de::DeserializeOwned + 'static
+    + Eq + PartialEq + Ord + PartialOrd + Clone + Debug + 'static
 {
 }
 // -- END FILE --
