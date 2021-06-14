@@ -2,34 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{base_types::*, configuration::EpochConfiguration};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{fmt::Debug, hash::Hash};
 
 // -- BEGIN FILE smr_apis --
 pub trait SmrTypes {
     /// An execution state.
-    type State: Eq
-        + PartialEq
-        + Ord
-        + PartialOrd
-        + Clone
-        + Debug
-        + Hash
-        + serde::Serialize
-        + serde::de::DeserializeOwned
-        + 'static;
+    type State: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static;
 
     /// A sequence of transactions.
-    type Command: Eq
-        + PartialEq
-        + Ord
-        + PartialOrd
-        + Clone
-        + Debug
-        + Hash
-        + serde::Serialize
-        + serde::de::DeserializeOwned
-        + 'static;
+    type Command: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static;
 }
 
 pub trait CommandFetcher<Command> {
@@ -94,7 +76,7 @@ pub trait Signable<Hasher> {
 /// Activate the reference implementation of `Signable` based on serde.
 /// * We use `serde_name` to extract a seed from the name of structs and enums.
 /// * We use `BCS` to generate canonical bytes suitable for hashing and signing.
-pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
+pub trait BcsSignable: Serialize + DeserializeOwned {}
 
 impl<T, Hasher> Signable<Hasher> for T
 where
@@ -115,43 +97,13 @@ pub trait CryptographicModule {
     type Hasher: std::io::Write;
 
     /// The identity (ie. public key) of a node.
-    type Author: serde::Serialize
-        + serde::de::DeserializeOwned
-        + Debug
-        + Clone
-        + Copy
-        + PartialEq
-        + Eq
-        + PartialOrd
-        + Ord
-        + Hash
-        + 'static; // A public key
+    type Author: Serialize + DeserializeOwned + Debug + Copy + Eq + Ord + Hash + 'static;
 
     /// The type of signature values.
-    type Signature: serde::Serialize
-        + serde::de::DeserializeOwned
-        + Debug
-        + Clone
-        + Copy
-        + PartialEq
-        + Eq
-        + PartialOrd
-        + Ord
-        + Hash
-        + 'static;
+    type Signature: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
 
     /// The type of hash values.
-    type HashValue: serde::Serialize
-        + serde::de::DeserializeOwned
-        + Debug
-        + Clone
-        + Copy
-        + PartialEq
-        + Eq
-        + PartialOrd
-        + Ord
-        + Hash
-        + 'static;
+    type HashValue: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
 
     /// Hash the given message, including a type-based seed.
     fn hash(&self, message: &dyn Signable<Self::Hasher>) -> Self::HashValue;
@@ -194,18 +146,15 @@ pub trait SmrContext:
     + StateFinalizer<<Self as SmrTypes>::State>
     + EpochReader<<Self as CryptographicModule>::Author, <Self as SmrTypes>::State>
     + Storage<<Self as SmrTypes>::State>
-    // TODO: minimize trait requirements. The following bounds are
-    // required to work around the infamous limitations of
-    // #[derive(..)] macros on generic types (see
-    // https://github.com/rust-lang/rust/issues/26925 ). The real fix
-    // is to implement traits manually in librabft_v2/record.rs (and
-    // probably in other places).
-    + Eq + PartialEq + Ord + PartialOrd + Clone + Debug + 'static
+    + Eq
+    + Clone
+    + Debug
+    + 'static
 {
 }
 // -- END FILE --
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub struct SignedValue<T, S> {
     pub value: T,
     pub signature: S,
