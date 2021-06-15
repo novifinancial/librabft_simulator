@@ -4,7 +4,6 @@
 use super::*;
 use crate::node::NodeConfig;
 use bft_lib::simulated_context::SimulatedContext;
-use serde_json;
 use std::collections::BTreeSet;
 
 #[test]
