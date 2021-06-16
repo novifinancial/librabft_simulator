@@ -13,19 +13,23 @@ mod record_tests;
 
 // -- BEGIN FILE records --
 /// A record read from the network.
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum Record<Context: SmrContext> {
     /// Proposed block, containing a command, e.g. a set of Libra transactions.
-    #[serde(bound(deserialize = "Block<Context>: Deserialize<'de>"))]
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     Block(Block<Context>),
     /// A single vote on a proposed block and its execution state.
-    #[serde(bound(deserialize = "Vote<Context>: Deserialize<'de>"))]
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     Vote(Vote<Context>),
     /// A quorum of votes related to a given block and execution state.
-    #[serde(bound(deserialize = "QuorumCertificate<Context>: Deserialize<'de>"))]
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     QuorumCertificate(QuorumCertificate<Context>),
     /// A signal that a particular round of an epoch has reached a timeout.
-    #[serde(bound(deserialize = "Timeout<Context>: Deserialize<'de>"))]
+    #[serde(bound(serialize = "Context: SmrContext"))]
+    #[serde(bound(deserialize = "Context: SmrContext"))]
     Timeout(Timeout<Context>),
 }
 
@@ -38,13 +42,13 @@ pub(crate) type QuorumCertificate<C> =
 
 pub(crate) type Timeout<C> = SignedValue<Timeout_<C>, <C as CryptographicModule>::Signature>;
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
 pub(crate) struct BlockHash<V>(pub V);
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
 pub(crate) struct QuorumCertificateHash<V>(pub V);
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Block_<Context: SmrContext> {
     /// User-defined command to execute in the state machine.
     pub(crate) command: Context::Command,
@@ -58,7 +62,7 @@ pub(crate) struct Block_<Context: SmrContext> {
     pub(crate) author: Context::Author,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Vote_<Context: SmrContext> {
     /// The current epoch.
     pub(crate) epoch_id: EpochId,
@@ -75,7 +79,7 @@ pub(crate) struct Vote_<Context: SmrContext> {
     pub(crate) author: Context::Author,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub struct QuorumCertificate_<Context: SmrContext> {
     /// The current epoch.
     pub(crate) epoch_id: EpochId,
@@ -94,7 +98,7 @@ pub struct QuorumCertificate_<Context: SmrContext> {
     pub(crate) author: Context::Author,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Timeout_<Context: SmrContext> {
     /// The current epoch.
     pub(crate) epoch_id: EpochId,

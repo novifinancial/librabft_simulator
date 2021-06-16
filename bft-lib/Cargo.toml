@@ -15,8 +15,10 @@ simulator = []
 env_logger = "0.8.1"
 anyhow = "1.0"
 log = "0.4.6"
-rand = "0.7.3"
-rand_distr = "0.3.0"
+rand = { version = "0.8.3" }
+rand_core = "0.6.0"
+rand_distr = "0.4.0"
+rand_xoshiro = "0.6.0"
 clap = "2.33"
 csv = "1.1"
 bcs = "0.1.2"

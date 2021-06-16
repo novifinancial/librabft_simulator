@@ -7,7 +7,6 @@ use crate::{pacemaker::*, record::*, record_store::*};
 use bft_lib::{
     base_types::*,
     interfaces::{ConsensusNode, NodeUpdateActions},
-    smr_context,
     smr_context::SmrContext,
 };
 use futures::future;
@@ -70,12 +69,24 @@ impl CommitTracker {
     }
 }
 
+/// Persistent configuration of LibraBFTv2 node.
+/// We avoid floats to make sure `Eq` is implemented.
+#[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(test, derive(Default))]
+pub struct NodeConfig {
+    pub target_commit_interval: Duration,
+    pub delta: Duration,
+    pub gamma_times_100: u32,
+    pub lambda_times_100: u32,
+}
+
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext,
+    Context: SmrContext<Config = NodeConfig>,
 {
     fn new(
-        config: smr_context::Config<Context::Author>,
+        author: Context::Author,
+        config: NodeConfig,
         initial_state: Context::State,
         node_time: NodeTime,
         context: &Context,
@@ -88,17 +99,18 @@ where
             epoch_id,
             context.configuration(&initial_state),
         );
+        let pacemaker = PacemakerState::new(
+            epoch_id,
+            node_time,
+            config.delta,
+            config.gamma_times_100 as f64 / 100.,
+            config.lambda_times_100 as f64 / 100.,
+        );
         NodeState {
             record_store,
-            pacemaker: PacemakerState::new(
-                epoch_id,
-                node_time,
-                config.delta,
-                config.gamma,
-                config.lambda,
-            ),
+            pacemaker,
             epoch_id,
-            local_author: config.author,
+            local_author: author,
             latest_voted_round: Round(0),
             locked_round: Round(0),
             latest_query_all_time: node_time,
@@ -202,12 +214,13 @@ impl<Context: SmrContext> NodeState<Context> {
 // -- BEGIN FILE consensus_node_impl --
 impl<Context> ConsensusNode<Context> for NodeState<Context>
 where
-    Context: SmrContext,
+    Context: SmrContext<Config = NodeConfig>,
 {
     fn load_node(context: &mut Context, node_time: NodeTime) -> AsyncResult<Self> {
-        let config = context.config();
+        let author = context.author();
+        let config = context.config().clone();
         let state = context.state();
-        let node = NodeState::new(config, state, node_time, &*context);
+        let node = NodeState::new(author, config, state, node_time, &*context);
         Box::new(future::ready(node))
     }
 
@@ -287,7 +300,7 @@ where
 // -- BEGIN FILE process_commits --
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext,
+    Context: SmrContext<Config = NodeConfig>,
 {
     pub(crate) fn process_commits(&mut self, context: &mut Context) {
         // For all commits that have not been processed yet, according to the commit tracker..

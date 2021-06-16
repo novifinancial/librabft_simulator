@@ -5,10 +5,7 @@ use super::*;
 
 #[test]
 fn test_count() {
-    let mut rights = BTreeMap::new();
-    rights.insert("0", 1);
-    rights.insert("1", 2);
-    rights.insert("2", 3);
+    let rights = vec![("0", 1), ("1", 2), ("2", 3)];
     let config = EpochConfiguration::new(rights);
     assert_eq!(config.total_votes, 6);
 
@@ -18,14 +15,11 @@ fn test_count() {
 
 #[test]
 fn test_pick_author() {
-    let mut rights = BTreeMap::new();
-    rights.insert("0", 1);
-    rights.insert("1", 2);
-    rights.insert("2", 5);
+    let rights = vec![("0", 1), ("1", 2), ("2", 5)];
     let config = EpochConfiguration::new(rights);
 
-    let mut hits = BTreeMap::new();
-    for seed in 10..(10 + config.total_votes) {
+    let mut hits = HashMap::new();
+    for seed in 20..(20 + config.total_votes) {
         let author = config.pick_author(seed as u64);
         *hits.entry(author).or_insert(0) += 1;
     }
@@ -35,9 +29,9 @@ fn test_pick_author() {
 }
 
 fn equal_configuration(num_nodes: usize) -> EpochConfiguration<usize> {
-    let mut voting_rights = BTreeMap::new();
+    let mut voting_rights = Vec::new();
     for index in 0..num_nodes {
-        voting_rights.insert(index, 1);
+        voting_rights.push((index, 1));
     }
     EpochConfiguration::new(voting_rights)
 }

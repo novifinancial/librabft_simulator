@@ -10,63 +10,56 @@ use crate::{
 };
 use futures::executor::block_on;
 use log::{debug, trace};
+use rand::{prelude::SliceRandom, SeedableRng};
 use rand_distr::{Distribution, LogNormal};
-use std::collections::{BinaryHeap, HashSet};
+use rand_xoshiro::Xoshiro256StarStar;
+use std::{collections::BinaryHeap, fmt::Debug};
 
 #[cfg(test)]
 #[path = "unit_tests/simulator_tests.rs"]
 mod simulator_tests;
 
-// TODO: the notion of round is specific to some BFT protocols => rename and/or generalize?
-/// Trait to help visualizing rounds in a simulator.
-pub trait ActiveRound {
-    fn active_round(&self) -> Round;
+/// Simulate the execution of a consensus protocol (including
+/// configuration changes) over a randomized network.
+///
+/// TODO: simulate changing network conditions, addition/removal/disconnection of nodes, etc.
+pub struct Simulator<Node, Context, Notification, Request, Response> {
+    clock: GlobalTime,
+    network_delay: RandomDelay,
+    pending_events: BinaryHeap<ScheduledEvent<Event<Notification, Request, Response>>>,
+    nodes: Vec<SimulatedNode<Node, Context>>,
+    event_count: usize,
+    rng: Xoshiro256StarStar,
 }
 
 /// Simulated global clock
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Debug)]
 pub struct GlobalTime(pub i64);
 
-impl std::ops::Add<Duration> for GlobalTime {
-    type Output = GlobalTime;
-
-    fn add(self, rhs: Duration) -> Self::Output {
-        GlobalTime(self.0 + rhs.0)
-    }
-}
-
-#[derive(Copy, Clone)]
+/// A distribution that produces random delays.
+#[derive(Copy, Clone, Debug)]
 pub struct RandomDelay {
     distribution: LogNormal<f64>,
 }
 
-impl RandomDelay {
-    pub fn new(mean: f64, variance: f64) -> RandomDelay {
-        // https://en.wikipedia.org/wiki/Log-normal_distribution
-        let mu = f64::ln(mean / f64::sqrt(1.0 + variance / (mean * mean)));
-        let sigma = f64::sqrt(f64::ln(1.0 + variance / (mean * mean)));
-        RandomDelay {
-            distribution: LogNormal::new(mu, sigma).unwrap(),
-        }
-    }
+/// An event inserted in the binary heap.
+/// Every event must have a unique `creation_stamp`.
+struct ScheduledEvent<Event> {
+    scheduled_time: GlobalTime,
+    creation_stamp: usize,
+    event: Event,
 }
 
-impl GlobalTime {
-    fn add_delay(self, delay: RandomDelay) -> GlobalTime {
-        let v = delay.distribution.sample(&mut rand::thread_rng());
-        GlobalTime(self.0 + (v as i64))
-    }
-
-    fn to_node_time(self, startup_time: GlobalTime) -> NodeTime {
-        NodeTime(self.0 - startup_time.0)
-    }
-
-    fn from_node_time(node_time: NodeTime, startup_time: GlobalTime) -> GlobalTime {
-        GlobalTime(node_time.0 + startup_time.0)
-    }
+#[derive(Debug)]
+pub struct SimulatedNode<Node, Context> {
+    startup_time: GlobalTime,
+    ignore_scheduled_updates_until: GlobalTime,
+    node: Node,
+    context: Context,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
+/// An event to be scheduled and processed by the simulator.
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum Event<Notification, Request, Response> {
     DataSyncNotifyEvent {
         receiver: Author,
@@ -88,22 +81,92 @@ pub enum Event<Notification, Request, Response> {
     },
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd)]
-struct ScheduledEvent<Notification, Request, Response>(
-    std::cmp::Reverse<GlobalTime>,
-    Event<Notification, Request, Response>,
-);
-
-type PendingEvents<Notification, Request, Response> =
-    BinaryHeap<ScheduledEvent<Notification, Request, Response>>;
-
-#[derive(Debug)]
-pub struct SimulatedNode<Node, Context> {
-    startup_time: GlobalTime,
-    ignore_scheduled_updates_until: GlobalTime,
-    node: Node,
-    context: Context,
+// TODO: the notion of round is specific to some BFT protocols => rename and/or generalize?
+/// Trait to help visualizing rounds in a simulator.
+pub trait ActiveRound {
+    fn active_round(&self) -> Round;
 }
+
+impl std::ops::Add<Duration> for GlobalTime {
+    type Output = GlobalTime;
+
+    fn add(self, rhs: Duration) -> Self::Output {
+        GlobalTime(self.0 + rhs.0)
+    }
+}
+
+impl RandomDelay {
+    pub fn new(mean: f64, variance: f64) -> RandomDelay {
+        // https://en.wikipedia.org/wiki/Log-normal_distribution
+        let mu = f64::ln(mean / f64::sqrt(1.0 + variance / (mean * mean)));
+        let sigma = f64::sqrt(f64::ln(1.0 + variance / (mean * mean)));
+        RandomDelay {
+            distribution: LogNormal::new(mu, sigma).unwrap(),
+        }
+    }
+}
+
+impl GlobalTime {
+    fn add_delay<R: rand_core::RngCore + ?Sized>(
+        self,
+        rng: &mut R,
+        delay: RandomDelay,
+    ) -> GlobalTime {
+        let v = delay.distribution.sample(rng);
+        trace!("Picked random delay: {}", v);
+        GlobalTime(self.0 + (v as i64))
+    }
+
+    fn to_node_time(self, startup_time: GlobalTime) -> NodeTime {
+        NodeTime(self.0 - startup_time.0)
+    }
+
+    fn from_node_time(node_time: NodeTime, startup_time: GlobalTime) -> GlobalTime {
+        GlobalTime(node_time.0 + startup_time.0)
+    }
+}
+
+impl<Notification, Request, Response> Event<Notification, Request, Response> {
+    fn kind(&self) -> usize {
+        use Event::*;
+        match self {
+            DataSyncNotifyEvent { .. } => 0,
+            DataSyncRequestEvent { .. } => 1,
+            DataSyncResponseEvent { .. } => 2,
+            UpdateTimerEvent { .. } => 3,
+        }
+    }
+}
+
+impl<Notification, Request, Response> PartialOrd
+    for ScheduledEvent<Event<Notification, Request, Response>>
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl<Notification, Request, Response> Ord
+    for ScheduledEvent<Event<Notification, Request, Response>>
+{
+    // std::collections::BinaryHeap is a max heap.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (
+            other.scheduled_time,
+            self.event.kind(),
+            other.creation_stamp,
+        )
+            .cmp(&(self.scheduled_time, other.event.kind(), self.creation_stamp))
+    }
+}
+
+impl<Event> PartialEq for ScheduledEvent<Event> {
+    fn eq(&self, other: &Self) -> bool {
+        self.creation_stamp == other.creation_stamp
+    }
+}
+
+impl<Event> Eq for ScheduledEvent<Event> {}
 
 impl<Node, Context> SimulatedNode<Node, Context>
 where
@@ -125,27 +188,17 @@ where
     }
 }
 
-/// Simulate the execution of a consensus protocol (including
-/// configuration changes) over a randomized network.
-///
-/// TODO: simulate changing network conditions, addition/removal/disconnection of nodes, etc.
-pub struct Simulator<Node, Context, Notification, Request, Response> {
-    clock: GlobalTime,
-    network_delay: RandomDelay,
-    pending_events: PendingEvents<Notification, Request, Response>,
-    nodes: Vec<SimulatedNode<Node, Context>>,
-}
-
 impl<Node, Context, Notification, Request, Response>
     Simulator<Node, Context, Notification, Request, Response>
 where
     Node: ConsensusNode<Context>,
     Context: SmrContext,
-    Notification: std::cmp::Ord + std::fmt::Debug,
-    Request: std::cmp::Ord + std::fmt::Debug,
-    Response: std::cmp::Ord + std::fmt::Debug,
+    Notification: Debug,
+    Request: Debug,
+    Response: Debug,
 {
     pub fn new<F>(
+        rng_seed: u64,
         num_nodes: usize,
         network_delay: RandomDelay,
         context_factory: F,
@@ -155,21 +208,28 @@ where
     {
         let clock = GlobalTime(0);
         let mut pending_events = BinaryHeap::new();
+        let mut event_count = 0;
+        let mut rng = rand_xoshiro::Xoshiro256StarStar::seed_from_u64(rng_seed);
         let nodes = (0..num_nodes)
             .map(|index| {
                 let author = Author(index);
                 let mut context = context_factory(author, num_nodes);
-                let startup_time = clock.add_delay(network_delay) + Duration(1);
+                let startup_time = clock.add_delay(&mut rng, network_delay) + Duration(1);
                 let node_time = NodeTime(0);
-                let deadline = GlobalTime::from_node_time(node_time, startup_time);
+                let scheduled_time = GlobalTime::from_node_time(node_time, startup_time);
                 let event = Event::UpdateTimerEvent { author };
                 let node = block_on(Node::load_node(&mut context, node_time));
                 trace!(
                     "Scheduling initial event {:?} for time {:?}",
                     event,
-                    deadline
+                    scheduled_time
                 );
-                pending_events.push(ScheduledEvent(std::cmp::Reverse(deadline), event));
+                pending_events.push(ScheduledEvent {
+                    scheduled_time,
+                    creation_stamp: event_count,
+                    event,
+                });
+                event_count += 1;
                 SimulatedNode {
                     startup_time,
                     ignore_scheduled_updates_until: startup_time + Duration(-1),
@@ -183,22 +243,28 @@ where
             network_delay,
             pending_events,
             nodes,
+            event_count,
+            rng,
         }
     }
 
     fn schedule_event(
         &mut self,
-        deadline: GlobalTime,
+        scheduled_time: GlobalTime,
         event: Event<Notification, Request, Response>,
     ) {
-        trace!("Scheduling event {:?} for {:?}", event, deadline);
-        self.pending_events
-            .push(ScheduledEvent(std::cmp::Reverse(deadline), event));
+        trace!("Scheduling event {:?} for {:?}", event, scheduled_time);
+        self.pending_events.push(ScheduledEvent {
+            scheduled_time,
+            creation_stamp: self.event_count,
+            event,
+        });
+        self.event_count += 1;
     }
 
     fn schedule_network_event(&mut self, event: Event<Notification, Request, Response>) {
-        let deadline = self.clock.add_delay(self.network_delay);
-        self.schedule_event(deadline, event);
+        let scheduled_time = self.clock.add_delay(&mut self.rng, self.network_delay);
+        self.schedule_event(scheduled_time, event);
     }
 }
 
@@ -221,10 +287,10 @@ where
     Node: ConsensusNode<Context>
         + DataSyncNode<Context, Notification = Notification, Request = Request, Response = Response>
         + ActiveRound
-        + std::fmt::Debug,
-    Notification: std::cmp::Ord + std::fmt::Debug + std::clone::Clone,
-    Request: std::cmp::Ord + std::fmt::Debug + std::clone::Clone,
-    Response: std::cmp::Ord + std::fmt::Debug,
+        + Debug,
+    Notification: Debug + Clone,
+    Request: Debug + Clone,
+    Response: Debug,
 {
     fn process_node_actions(
         &mut self,
@@ -240,35 +306,39 @@ where
         // First, we must save the state of the node.
         block_on(node.node.save_node(&mut node.context));
         // Then, schedule the next call to `update_node`.
-        let new_deadline = {
-            let new_deadline = std::cmp::max(
+        let new_scheduled_time = {
+            let new_scheduled_time = std::cmp::max(
                 GlobalTime::from_node_time(actions.next_scheduled_update, node.startup_time),
                 // Make sure we schedule the update strictly in the future so it does not get
                 // ignored by `ignore_scheduled_updates_until` below.
                 clock + Duration(1),
             );
             // We don't remove the previously scheduled updates but this will cancel them.
-            node.ignore_scheduled_updates_until = new_deadline + Duration(-1);
-            new_deadline
+            node.ignore_scheduled_updates_until = new_scheduled_time + Duration(-1);
+            new_scheduled_time
             // scoping the mutable 'node' for the borrow checker
         };
         let event = Event::UpdateTimerEvent { author };
-        self.schedule_event(new_deadline, event);
+        self.schedule_event(new_scheduled_time, event);
         // Schedule sending notifications.
-        let mut receivers = HashSet::new();
-        for node in actions.should_send {
-            receivers.insert(node);
-        }
+        let mut receivers = Vec::new();
         if actions.should_broadcast {
             // TODO: broadcasting to all (past and future) nodes in the network is not entirely
             // realistic. The pseudo-code should probably use `actions.should_send` instead to
             // broadcast only to the nodes that a sender consider part of the epoch.
             for index in 0..self.nodes.len() {
                 if index != author.0 {
-                    receivers.insert(Author(index));
+                    receivers.push(Author(index));
+                }
+            }
+        } else {
+            for receiver in actions.should_send {
+                if receiver != author {
+                    receivers.push(receiver);
                 }
             }
         }
+        receivers.shuffle(&mut self.rng);
         let notification = self.simulated_node(author).node.create_notification();
         for receiver in receivers {
             self.schedule_network_event(Event::DataSyncNotifyEvent {
@@ -278,16 +348,18 @@ where
             });
         }
         // Schedule sending requests.
-        let mut senders = HashSet::new();
+        let mut senders = Vec::new();
         if actions.should_query_all {
             // TODO: similarly `should_query_all` is probably too coarse.
             for index in 0..self.nodes.len() {
                 if index != author.0 {
-                    senders.insert(Author(index));
+                    senders.push(Author(index));
                 }
             }
         }
         let request = self.simulated_node(author).node.create_request();
+        let mut senders = senders.into_iter().collect::<Vec<_>>();
+        senders.shuffle(&mut self.rng);
         for sender in senders {
             self.schedule_network_event(Event::DataSyncRequestEvent {
                 receiver: author,
@@ -300,7 +372,11 @@ where
     pub fn loop_until(&mut self, max_clock: GlobalTime, csv_path: Option<String>) -> Vec<&Context> {
         let mut data_writer = { csv_path.map(|path| DataWriter::new(self.nodes.len(), path)) };
 
-        while let Some(ScheduledEvent(std::cmp::Reverse(clock), event)) = self.pending_events.pop()
+        while let Some(ScheduledEvent {
+            scheduled_time: clock,
+            event,
+            ..
+        }) = self.pending_events.pop()
         {
             if clock > max_clock {
                 break;

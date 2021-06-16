@@ -3,33 +3,40 @@
 
 //! Main executable to run a simulation of LibraBFT v2.
 
-use bft_lib::{base_types::*, simulated_context::SimulatedContext, simulator, smr_context};
+use bft_lib::{base_types::*, simulated_context::SimulatedContext, simulator};
 use clap::{App, Arg};
-use librabft_v2::{data_sync::*, node::NodeState};
+use librabft_v2::{
+    data_sync::*,
+    node::{NodeConfig, NodeState},
+};
 use log::{info, warn};
+use rand::Rng;
+
+type Context = SimulatedContext<NodeConfig>;
 
 fn main() {
     let args = get_arguments();
-
     env_logger::init();
+    let seed = args.seed.unwrap_or_else(|| rand::thread_rng().gen());
+    warn!("seed: {}", seed);
     let context_factory = |author, num_nodes| {
-        let config = smr_context::Config {
-            author,
+        let config = NodeConfig {
             target_commit_interval: args.target_commit_interval,
             delta: args.delta,
-            gamma: args.gamma,
-            lambda: args.lambda,
+            gamma_times_100: (args.gamma * 100.) as u32,
+            lambda_times_100: (args.lambda * 100.) as u32,
         };
-        SimulatedContext::new(config, num_nodes, args.commands_per_epoch)
+        warn!("config for {:?}: {:?}", author, config);
+        SimulatedContext::new(author, config, num_nodes, args.commands_per_epoch)
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
     let mut sim = simulator::Simulator::<
-        NodeState<SimulatedContext>,
-        SimulatedContext,
-        DataSyncNotification<SimulatedContext>,
+        NodeState<Context>,
+        Context,
+        DataSyncNotification<Context>,
         DataSyncRequest,
-        DataSyncResponse<SimulatedContext>,
-    >::new(args.nodes, delay_distribution, context_factory);
+        DataSyncResponse<Context>,
+    >::new(seed, args.nodes, delay_distribution, context_factory);
     let contexts = sim.loop_until(
         simulator::GlobalTime(args.max_clock),
         args.output_data_files,
@@ -48,6 +55,7 @@ struct CliArguments {
     max_clock: i64,
     mean: f64,
     variance: f64,
+    seed: Option<u64>,
     nodes: usize,
     commands_per_epoch: usize,
     target_commit_interval: Duration,
@@ -84,6 +92,13 @@ fn get_arguments() -> CliArguments {
                 .long("nodes")
                 .help("The number of nodes to simulate")
                 .default_value("3"),
+        )
+        .arg(
+            Arg::with_name("seed")
+                .long("seed")
+                .value_name("SEED")
+                .takes_value(true)
+                .help("Seed for the PRNG"),
         )
         .arg(
             Arg::with_name("commands_per_epoch")
@@ -133,6 +148,7 @@ fn get_arguments() -> CliArguments {
             .parse::<f64>()
             .unwrap(),
         nodes: matches.value_of("nodes").unwrap().parse::<usize>().unwrap(),
+        seed: matches.value_of("seed").map(|x| x.parse::<u64>().unwrap()),
         commands_per_epoch: matches
             .value_of("commands_per_epoch")
             .unwrap()

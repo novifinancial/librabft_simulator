@@ -2,34 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{base_types::*, configuration::EpochConfiguration};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{fmt::Debug, hash::Hash};
 
 // -- BEGIN FILE smr_apis --
 pub trait SmrTypes {
     /// An execution state.
-    type State: Eq
-        + PartialEq
-        + Ord
-        + PartialOrd
-        + Clone
-        + Debug
-        + Hash
-        + serde::Serialize
-        + serde::de::DeserializeOwned
-        + 'static;
+    type State: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static;
 
     /// A sequence of transactions.
-    type Command: Eq
-        + PartialEq
-        + Ord
-        + PartialOrd
-        + Clone
-        + Debug
-        + Hash
-        + serde::Serialize
-        + serde::de::DeserializeOwned
-        + 'static;
+    type Command: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static;
 }
 
 pub trait CommandFetcher<Command> {
@@ -78,7 +60,7 @@ pub trait StateFinalizer<State> {
 }
 
 /// How to read epoch ids and configuration from a state.
-pub trait EpochReader<Author, State> {
+pub trait EpochReader<Author: Hash, State> {
     /// Read the id of the epoch in a state.
     fn read_epoch_id(&self, state: &State) -> EpochId;
 
@@ -94,7 +76,7 @@ pub trait Signable<Hasher> {
 /// Activate the reference implementation of `Signable` based on serde.
 /// * We use `serde_name` to extract a seed from the name of structs and enums.
 /// * We use `BCS` to generate canonical bytes suitable for hashing and signing.
-pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
+pub trait BcsSignable: Serialize + DeserializeOwned {}
 
 impl<T, Hasher> Signable<Hasher> for T
 where
@@ -111,40 +93,17 @@ where
 
 /// Public and private cryptographic functions.
 pub trait CryptographicModule {
+    /// How to hash bytes.
     type Hasher: std::io::Write;
-    type Author: serde::Serialize
-        + serde::de::DeserializeOwned
-        + Debug
-        + Clone
-        + Copy
-        + PartialEq
-        + Eq
-        + PartialOrd
-        + Ord
-        + Hash
-        + 'static; // A public key
-    type Signature: serde::Serialize
-        + serde::de::DeserializeOwned
-        + Debug
-        + Clone
-        + Copy
-        + PartialEq
-        + Eq
-        + PartialOrd
-        + Ord
-        + Hash
-        + 'static;
-    type HashValue: serde::Serialize
-        + serde::de::DeserializeOwned
-        + Debug
-        + Clone
-        + Copy
-        + PartialEq
-        + Eq
-        + PartialOrd
-        + Ord
-        + Hash
-        + 'static;
+
+    /// The identity (ie. public key) of a node.
+    type Author: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
+
+    /// The type of signature values.
+    type Signature: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
+
+    /// The type of hash values.
+    type HashValue: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
 
     /// Hash the given message, including a type-based seed.
     fn hash(&self, message: &dyn Signable<Self::Hasher>) -> Self::HashValue;
@@ -163,19 +122,14 @@ pub trait CryptographicModule {
     fn sign(&mut self, hash: Self::HashValue) -> Self::Signature;
 }
 
-// TODO: some of this belongs to LibraBFT.
-#[derive(PartialEq, PartialOrd, Clone, Debug, Serialize, Deserialize)]
-pub struct Config<Author> {
-    pub author: Author,
-    pub target_commit_interval: Duration,
-    pub delta: Duration,
-    pub gamma: f64,
-    pub lambda: f64,
-}
+// TODO: currently, "Storage" only provides (synchronous) read-only access to initial node configuration.
+// Eventually, this should let node (asynchronously) query and modify an actual (key-value?) database.
+pub trait Storage<State> {
+    // Protocol-specific configuration for each consensus node. Implementations of
+    // SmrContext should be parametric w.r.t this type.
+    type Config;
 
-// TODO: work in progress
-pub trait Storage<Author, State> {
-    fn config(&self) -> Config<Author>;
+    fn config(&self) -> &Self::Config;
 
     fn state(&self) -> State;
 }
@@ -190,19 +144,16 @@ pub trait SmrContext:
     > + CommandFetcher<<Self as SmrTypes>::Command>
     + StateFinalizer<<Self as SmrTypes>::State>
     + EpochReader<<Self as CryptographicModule>::Author, <Self as SmrTypes>::State>
-    + Storage<<Self as CryptographicModule>::Author, <Self as SmrTypes>::State>
-    // TODO: minimize trait requirements. The following bounds are
-    // required to work around the infamous limitations of
-    // #[derive(..)] macros on generic types (see
-    // https://github.com/rust-lang/rust/issues/26925 ). The real fix
-    // is to implement traits manually in librabft_v2/record.rs (and
-    // probably in other places).
-    + Eq + PartialEq + Ord + PartialOrd + Clone + Debug + serde::Serialize + serde::de::DeserializeOwned + 'static
+    + Storage<<Self as SmrTypes>::State>
+    + Eq
+    + Clone
+    + Debug
+    + 'static
 {
 }
 // -- END FILE --
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub struct SignedValue<T, S> {
     pub value: T,
     pub signature: S,
@@ -240,17 +191,5 @@ impl<T, S> SignedValue<T, S> {
     {
         let h = context.hash(&self.value);
         context.verify(self.value.author(), h, self.signature)
-    }
-}
-
-impl<Author> Config<Author> {
-    pub fn new(author: Author) -> Self {
-        Config {
-            author,
-            target_commit_interval: Duration::default(),
-            delta: Duration::default(),
-            gamma: 0.0,
-            lambda: 0.0,
-        }
     }
 }

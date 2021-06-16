@@ -6,7 +6,7 @@ use anyhow::ensure;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
+    collections::{hash_map::DefaultHasher, HashMap},
     fmt::Debug,
     hash::{Hash, Hasher},
 };
@@ -15,18 +15,19 @@ use std::{
 #[path = "unit_tests/simulated_context_tests.rs"]
 mod simulated_context_tests;
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct Author(pub usize);
-#[derive(
-    Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize, Default,
-)]
+
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Serialize, Deserialize, Default)]
 pub struct Signature(pub usize, pub u64);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
+
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct HashValue(pub u64);
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct State(pub u64);
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug, Serialize, Deserialize)]
+
+#[derive(Eq, PartialEq, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct Command {
     pub proposer: Author,
     pub index: usize,
@@ -69,9 +70,10 @@ impl SimulatedLedgerState {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SimulatedContext {
-    config: Config<Author>,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SimulatedContext<Config> {
+    author: Author,
+    config: Config,
     num_nodes: usize,
     max_command_per_epoch: usize,
     next_fetched_command_index: usize,
@@ -79,28 +81,15 @@ pub struct SimulatedContext {
     pending_ledger_states: HashMap<State, SimulatedLedgerState>,
 }
 
-// TODO: remove (see comment in SmrContext)
-impl std::cmp::PartialOrd for SimulatedContext {
-    fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
-        panic!("not implemented");
-    }
-}
-impl std::cmp::Ord for SimulatedContext {
-    fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
-        panic!("not implemented");
-    }
-}
-impl std::cmp::PartialEq for SimulatedContext {
-    fn eq(&self, _other: &Self) -> bool {
-        panic!("not implemented");
-    }
-}
-
-impl std::cmp::Eq for SimulatedContext {}
-
-impl SimulatedContext {
-    pub fn new(config: Config<Author>, num_nodes: usize, max_command_per_epoch: usize) -> Self {
+impl<Config> SimulatedContext<Config> {
+    pub fn new(
+        author: Author,
+        config: Config,
+        num_nodes: usize,
+        max_command_per_epoch: usize,
+    ) -> Self {
         SimulatedContext {
+            author,
             config,
             num_nodes,
             max_command_per_epoch,
@@ -127,15 +116,15 @@ impl SimulatedContext {
     }
 }
 
-impl SmrTypes for SimulatedContext {
+impl<Config> SmrTypes for SimulatedContext<Config> {
     type State = State;
     type Command = Command;
 }
 
-impl CommandFetcher<Command> for SimulatedContext {
+impl<Config> CommandFetcher<Command> for SimulatedContext<Config> {
     fn fetch(&mut self) -> Option<Command> {
         let command = Command {
-            proposer: self.config.author,
+            proposer: self.author,
             index: self.next_fetched_command_index,
         };
         self.next_fetched_command_index += 1;
@@ -143,7 +132,7 @@ impl CommandFetcher<Command> for SimulatedContext {
     }
 }
 
-impl CommandExecutor<Author, State, Command> for SimulatedContext {
+impl<Config> CommandExecutor<Author, State, Command> for SimulatedContext<Config> {
     fn compute(
         &mut self,
         base_state: &State,
@@ -161,14 +150,14 @@ impl CommandExecutor<Author, State, Command> for SimulatedContext {
                     .insert(new_state.clone(), new_ledger_state);
                 info!(
                     "{:?}{:?} Executing {:?} after {:?} gave {:?}",
-                    self.config.author, time, command, base_state, new_state
+                    self.author, time, command, base_state, new_state
                 );
                 Some(new_state)
             }
             None => {
                 error!(
                     "{:?}{:?} Trying to executing {:?} after {:?} but the base state is not available",
-                    self.config.author, time, command, base_state
+                    self.author, time, command, base_state
                 );
                 None
             }
@@ -176,24 +165,18 @@ impl CommandExecutor<Author, State, Command> for SimulatedContext {
     }
 }
 
-impl StateFinalizer<State> for SimulatedContext {
+impl<Config> StateFinalizer<State> for SimulatedContext<Config> {
     fn commit(&mut self, state: &State, certificate: Option<&dyn CommitCertificate<State>>) {
-        info!(
-            "{:?} Delivering commit for state: {:?}",
-            self.config.author, state
-        );
+        info!("{:?} Delivering commit for state: {:?}", self.author, state);
         let ledger_state = self
             .pending_ledger_states
             .remove(state)
             .expect("Committed states should be known");
         info!(
             "{:?} Previous ledger state: {:?}",
-            self.config.author, self.last_committed_ledger_state
+            self.author, self.last_committed_ledger_state
         );
-        info!(
-            "{:?} New ledger state: {:?}",
-            self.config.author, ledger_state
-        );
+        info!("{:?} New ledger state: {:?}", self.author, ledger_state);
         assert!(self
             .last_committed_ledger_state
             .happened_just_before(&ledger_state));
@@ -202,7 +185,7 @@ impl StateFinalizer<State> for SimulatedContext {
                 assert_eq!(state, state2);
                 info!(
                     "{:?} Received commit certificate for state: {:?}",
-                    self.config.author, state
+                    self.author, state
                 );
             }
         }
@@ -210,14 +193,14 @@ impl StateFinalizer<State> for SimulatedContext {
     }
 
     fn discard(&mut self, state: &State) {
-        debug!("{:?} Discarding state: {:?}", self.config.author, state);
+        debug!("{:?} Discarding state: {:?}", self.author, state);
         self.pending_ledger_states
             .remove(state)
             .expect("Discarded states should be known");
     }
 }
 
-impl EpochReader<Author, State> for SimulatedContext {
+impl<Config> EpochReader<Author, State> for SimulatedContext<Config> {
     fn read_epoch_id(&self, state: &State) -> EpochId {
         let num_commands = self
             .get_ledger_state(state)
@@ -229,9 +212,9 @@ impl EpochReader<Author, State> for SimulatedContext {
 
     fn configuration(&self, _state: &State) -> EpochConfiguration<Author> {
         // We do not simulate changes in the voting rights yet.
-        let mut voting_rights = BTreeMap::new();
+        let mut voting_rights = Vec::new();
         for index in 0..self.num_nodes {
-            voting_rights.insert(Author(index), 1);
+            voting_rights.push((Author(index), 1));
         }
         EpochConfiguration::new(voting_rights)
     }
@@ -250,7 +233,7 @@ impl std::io::Write for SimulatedHasher {
     }
 }
 
-impl CryptographicModule for SimulatedContext {
+impl<Config> CryptographicModule for SimulatedContext<Config> {
     type Hasher = SimulatedHasher;
     type Author = Author;
     type Signature = Signature;
@@ -274,17 +257,19 @@ impl CryptographicModule for SimulatedContext {
     }
 
     fn author(&self) -> Self::Author {
-        self.config.author
+        self.author
     }
 
-    fn sign(&mut self, hash: Self::HashValue) -> Self::Signature {
-        Signature(self.config.author.0, hash)
+    fn sign(&mut self, hash: Self::HashValue) -> Result<Self::Signature> {
+        Ok(Signature(self.author.0, hash))
     }
 }
 
-impl Storage<Author, State> for SimulatedContext {
-    fn config(&self) -> Config<Author> {
-        self.config.clone()
+impl<Config> Storage<State> for SimulatedContext<Config> {
+    type Config = Config;
+
+    fn config(&self) -> &Config {
+        &self.config
     }
 
     fn state(&self) -> State {
@@ -292,4 +277,4 @@ impl Storage<Author, State> for SimulatedContext {
     }
 }
 
-impl SmrContext for SimulatedContext {}
+impl<Config> SmrContext for SimulatedContext<Config> where Config: Eq + Clone + Debug + 'static {}

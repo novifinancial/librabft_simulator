@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::record::BlockHash;
-use bft_lib::{simulated_context::*, smr_context, smr_context::*};
+use crate::{node::NodeConfig, record::BlockHash};
+use bft_lib::{simulated_context::*, smr_context::*};
 use futures::executor::block_on;
 
 #[test]
 fn test_node() {
     let mut context = SimulatedContext::new(
-        smr_context::Config::new(Author(0)),
+        Author(0),
+        NodeConfig::default(),
         /* num_nodes */ 1,
         /* max commands per epoch */ 2,
     );
@@ -39,7 +40,7 @@ fn test_node() {
 
     let v0 = SignedValue::make(
         &mut context,
-        Vote_::<SimulatedContext> {
+        Vote_::<SimulatedContext<NodeConfig>> {
             epoch_id,
             round: Round(1),
             certified_block_hash: block_hash,
