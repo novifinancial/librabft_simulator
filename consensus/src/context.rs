@@ -1,20 +1,20 @@
 use crate::config::Committee;
-use bft_lib::base_types::{EpochId, NodeTime, Result, Duration};
+use crate::mempool::MempoolDriver;
+use bft_lib::base_types::{EpochId, NodeTime, Result};
 use bft_lib::configuration::EpochConfiguration;
 use bft_lib::smr_context::*;
 use crypto::{Digest, PublicKey, Signature, SignatureService};
-use serde::{Deserialize, Serialize};
 use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
+use serde::{Deserialize, Serialize};
 use std::convert::TryInto as _;
-use crate::mempool::MempoolDriver;
 
 pub struct Context {
     name: PublicKey,
     committee: Committee,
     _signature_service: SignatureService,
     _mempool_driver: MempoolDriver,
-    _max_payload_size: usize
+    _max_payload_size: usize,
 }
 
 impl Context {
@@ -23,14 +23,14 @@ impl Context {
         committee: Committee,
         signature_service: SignatureService,
         mempool_driver: MempoolDriver,
-        max_payload_size: usize
+        max_payload_size: usize,
     ) -> Self {
         Self {
             name,
             committee,
             _signature_service: signature_service,
             _mempool_driver: mempool_driver,
-            _max_payload_size: max_payload_size
+            _max_payload_size: max_payload_size,
         }
     }
 }
@@ -179,16 +179,12 @@ impl CryptographicModule for Context {
     }
 }
 
-// TODO: Is this the right interface for a real (networked) implementation?
-impl Storage<Author, State> for Context {
-    fn config(&self) -> Config<Author> {
-        Config {
-            author: self.name,
-            target_commit_interval: Duration::default(),
-            delta: Duration::default(),
-            gamma: 0.0,
-            lambda: 0.0,
-        }
+// TODO:
+impl Storage<State> for Context {
+    type Config = u64;
+
+    fn config(&self) -> &Self::Config {
+        &0
     }
 
     fn state(&self) -> State {

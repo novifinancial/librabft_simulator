@@ -6,12 +6,12 @@ mod error;
 mod config;
 mod consensus;
 pub mod core; // TODO: This module can be private.
-mod leader;
+              //mod leader;
 mod mempool;
 mod messages;
 //mod synchronizer;
-mod timer;
 mod context;
+mod timer;
 
 #[cfg(test)]
 #[path = "tests/common.rs"]

@@ -8,20 +8,19 @@ use tokio::time::{sleep, Duration, Instant, Sleep};
 pub mod timer_tests;
 
 pub struct Timer {
-    duration: u64,
     sleep: Pin<Box<Sleep>>,
 }
 
 impl Timer {
     pub fn new(duration: u64) -> Self {
         let sleep = Box::pin(sleep(Duration::from_millis(duration)));
-        Self { duration, sleep }
+        Self { sleep }
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, duration: u64) {
         self.sleep
             .as_mut()
-            .reset(Instant::now() + Duration::from_millis(self.duration));
+            .reset(Instant::now() + Duration::from_millis(duration));
     }
 }
 

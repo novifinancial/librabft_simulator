@@ -1,22 +1,19 @@
 use crate::config::{Committee, Parameters};
-use crate::error::{ConsensusError, ConsensusResult};
-use crate::leader::LeaderElector;
-use crate::mempool::MempoolDriver;
-use crate::messages::{Block, Timeout, Vote, QC, TC};
-//use crate::synchronizer::Synchronizer;
-use crate::timer::Timer;
-use crypto::{Digest, PublicKey, SignatureService};
-use log::{debug, error, warn};
-use network::NetMessage;
-use serde::{Deserialize, Serialize};
-use store::Store;
-use tokio::sync::mpsc::{Receiver, Sender};
 use crate::context::Context;
+use crate::mempool::MempoolDriver;
+use crate::messages::Block;
+use crate::timer::Timer;
 use bft_lib::base_types::NodeTime;
-use bft_lib::interfaces::ConsensusNode;
+use bft_lib::interfaces::{ConsensusNode, DataSyncNode, NodeUpdateActions};
 use bft_lib::smr_context::SmrContext;
+use crypto::{PublicKey, SignatureService};
 use futures::executor::block_on;
 use librabft_v2::data_sync::{DataSyncNotification, DataSyncRequest, DataSyncResponse};
+use network::NetMessage;
+use serde::{Deserialize, Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
+use store::Store;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 // TODO: Temporarily disable tests.
 // #[cfg(test)]
@@ -44,27 +41,26 @@ pub enum ConsensusMessage {
     },
 }
 
-#[allow(dead_code)] // TODO: Temporarily silence clippy.
-pub struct Core<Node> {
+pub struct CoreDriver<Node> {
     name: PublicKey,
-    parameters: Parameters,
     store: Store,
-    leader_elector: LeaderElector,
-    //synchronizer: Synchronizer,
     core_channel: Receiver<ConsensusMessage>,
     network_channel: Sender<NetMessage>,
     commit_channel: Sender<Block>,
-    round: RoundNumber,
-    last_voted_round: RoundNumber,
-    last_committed_round: RoundNumber,
-    high_qc: QC,
+    node: Node,
+    context: Context,
     timer: Timer,
-    node: Node
 }
 
-impl<Node> Core<Node> 
+impl<Node> CoreDriver<Node>
 where
-    Node: ConsensusNode<Context>,
+    Node: ConsensusNode<Context>
+        + DataSyncNode<
+            Context,
+            Notification = DataSyncNotification<Context>,
+            Request = DataSyncRequest,
+            Response = DataSyncResponse<Context>,
+        >,
     Context: SmrContext,
 {
     #[allow(clippy::too_many_arguments)]
@@ -74,47 +70,70 @@ where
         parameters: Parameters,
         signature_service: SignatureService,
         store: Store,
-        leader_elector: LeaderElector,
         mempool_driver: MempoolDriver,
-        //synchronizer: Synchronizer,
         core_channel: Receiver<ConsensusMessage>,
         network_channel: Sender<NetMessage>,
         commit_channel: Sender<Block>,
     ) -> Self {
-
-        let node_time = NodeTime(0);
         let mut context = Context::new(
             name,
             committee,
             signature_service,
             mempool_driver,
-            parameters.max_payload_size
+            parameters.max_payload_size,
         );
-        let node = block_on(Node::load_node(&mut context, node_time));
-
+        let node = block_on(Node::load_node(&mut context, Self::local_time()));
         let timer = Timer::new(parameters.timeout_delay);
+
         Self {
             name,
-            parameters,
             store,
-            leader_elector,
-            //synchronizer,
+            core_channel,
             network_channel,
             commit_channel,
-            core_channel,
-            round: 1,
-            last_voted_round: 0,
-            last_committed_round: 0,
-            high_qc: QC::genesis(),
+            context,
+            node,
             timer,
-            node
         }
+    }
+
+    fn local_time() -> NodeTime {
+        NodeTime(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Failed to measure time")
+                .as_millis() as i64,
+        )
+    }
+
+    async fn process_node_actions(&mut self, actions: NodeUpdateActions<Context>) {
+        self.node.save_node(&mut self.context).await;
+
+        let _notification = self.node.create_notification();
+
+        if actions.should_broadcast {
+            // TODO:
+        } else {
+            for receiver in actions.should_send {
+                if receiver != self.name {
+                    // TODO:
+                }
+            }
+        }
+
+        // Schedule sending requests.
+        let request: DataSyncRequest = self.node.create_request();
+        if actions.should_query_all {
+            // TODO: broadcast request.
+        }
+
+        self.timer.reset(actions.next_scheduled_update.0 as u64);
     }
 
     /// Main reactor loop.
     pub async fn run(&mut self) {
-        // Schedule a timer in case we don't hear from the leader.
-        self.timer.reset();
+        // Bootstrap.
+        self.timer.reset(100);
 
         // Process incoming messages and events.
         loop {
@@ -122,18 +141,29 @@ where
                 Some(message) = self.core_channel.recv() => {
                     match message {
                         ConsensusMessage::DataSyncNotify{receiver, sender, notification} => {
-                            // TODO
+                            let result = self.node.handle_notification(&mut self.context, notification).await;
+                            let actions = self.node.update_node(&mut self.context, Self::local_time());
+                            if let Some(request) = result {
+                                // TODO: Send request through the network.
+                            }
+                            self.process_node_actions(actions).await;
                         },
                         ConsensusMessage::DataSyncRequest{receiver, sender, request} => {
-                            // TODO
+                            let _response = self.node.handle_request(&mut self.context, request).await;
+                            // TODO: send through network.
                         },
                         ConsensusMessage::DataSyncResponse{receiver, sender, response} => {
-                            // TODO
+                            let clock = Self::local_time();
+                            self.node.handle_response(&mut self.context, response, clock).await;
+                            let actions = self.node.update_node(&mut self.context, clock);
+                            self.process_node_actions(actions).await;
                         },
                     }
                 },
                 () = &mut self.timer => {
-                    // TODO
+                    let clock = Self::local_time();
+                    let actions = self.node.update_node(&mut self.context, clock);
+                    self.process_node_actions(actions).await;
                 }
             };
         }

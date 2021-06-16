@@ -1,19 +1,17 @@
 use crate::config::{Committee, Parameters};
-use crate::core::{ConsensusMessage, Core};
+use crate::context::Context;
+use crate::core::{ConsensusMessage, CoreDriver};
 use crate::error::ConsensusResult;
-use crate::leader::LeaderElector;
 use crate::mempool::{ConsensusMempoolMessage, MempoolDriver};
 use crate::messages::Block;
-//use crate::synchronizer::Synchronizer;
+use bft_lib::interfaces::{ConsensusNode, DataSyncNode};
+use bft_lib::smr_context::SmrContext;
 use crypto::{PublicKey, SignatureService};
+use librabft_v2::data_sync::{DataSyncNotification, DataSyncRequest, DataSyncResponse};
 use log::info;
 use network::{NetReceiver, NetSender};
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use crate::context::Context;
-use bft_lib::interfaces::ConsensusNode;
-use bft_lib::smr_context::SmrContext;
-use serde::de::DeserializeOwned;
 
 // TODO: Temporarily disable tests.
 // #[cfg(test)]
@@ -22,11 +20,9 @@ use serde::de::DeserializeOwned;
 
 pub struct Consensus;
 
-impl Consensus 
-{
+impl Consensus {
     #[allow(clippy::too_many_arguments)]
-    pub async fn run<Node>
-    (
+    pub async fn run<Node>(
         name: PublicKey,
         committee: Committee,
         parameters: Parameters,
@@ -36,9 +32,17 @@ impl Consensus
         rx_core: Receiver<ConsensusMessage>,
         tx_consensus_mempool: Sender<ConsensusMempoolMessage>,
         tx_commit: Sender<Block>,
-    ) -> ConsensusResult<()> 
+    ) -> ConsensusResult<()>
     where
-        Node: ConsensusNode<Context> + Send + 'static,
+        Node: ConsensusNode<Context>
+            + Send
+            + 'static
+            + DataSyncNode<
+                Context,
+                Notification = DataSyncNotification<Context>,
+                Request = DataSyncRequest,
+                Response = DataSyncResponse<Context>,
+            >,
         Context: SmrContext,
     {
         // NOTE: The following log entries are used to compute performance.
@@ -76,43 +80,24 @@ impl Consensus
             network_sender.run().await;
         });
 
-        
-        // The leader elector algorithm.
-        let leader_elector = LeaderElector::new(committee.clone());
-
         // Make the mempool driver which will mediate our requests to the mempool.
         let mempool_driver = MempoolDriver::new(tx_consensus_mempool);
 
-        /*
-        // Make the synchronizer. This instance runs in a background thread
-        // and asks other nodes for any block that we may be missing.
-        let synchronizer = Synchronizer::new(
-            name,
-            committee.clone(),
-            store.clone(),
-            /* network_channel */ tx_network.clone(),
-            /* core_channel */ tx_core,
-            parameters.sync_retry_delay,
-        )
-        .await;
-        */
-
-        let mut core = Core::<Node>::new(
+        // Spawn the core driver.
+        let mut core_driver = CoreDriver::<Node>::new(
             name,
             committee,
             parameters,
             signature_service,
             store,
-            leader_elector,
             mempool_driver,
-            //synchronizer,
             /* core_channel */ rx_core,
             /* network_channel */ tx_network,
             /* commit_channel */ tx_commit,
         );
-        tokio::spawn(async move {
-            core.run().await;
-        });
+        //tokio::spawn(async move {
+        //    core_driver.run().await;
+        //});
 
         Ok(())
     }
