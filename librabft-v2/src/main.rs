@@ -12,8 +12,6 @@ use librabft_v2::{
 use log::{info, warn};
 use rand::Rng;
 
-type Context = SimulatedContext<NodeConfig>;
-
 fn main() {
     let args = get_arguments();
     env_logger::init();
@@ -27,15 +25,17 @@ fn main() {
             lambda_times_100: (args.lambda * 100.) as u32,
         };
         warn!("config for {:?}: {:?}", author, config);
-        SimulatedContext::new(author, config, num_nodes, args.commands_per_epoch)
+        let mut database = std::collections::HashMap::new();
+        database.insert("config".to_string(), serde_json::to_vec(&config).unwrap());
+        SimulatedContext::new(author, database, num_nodes, args.commands_per_epoch)
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
     let mut sim = simulator::Simulator::<
-        NodeState<Context>,
-        Context,
-        DataSyncNotification<Context>,
+        NodeState<SimulatedContext>,
+        SimulatedContext,
+        DataSyncNotification<SimulatedContext>,
         DataSyncRequest,
-        DataSyncResponse<Context>,
+        DataSyncResponse<SimulatedContext>,
     >::new(seed, args.nodes, delay_distribution, context_factory);
     let contexts = sim.loop_until(
         simulator::GlobalTime(args.max_clock),

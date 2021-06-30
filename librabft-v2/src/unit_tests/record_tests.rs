@@ -2,20 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::node::NodeConfig;
 use bft_lib::{simulated_context::*, smr_context::CryptographicModule};
+use std::collections::HashMap;
 
 #[test]
 fn test_block_signing() {
     let mut context = SimulatedContext::new(
         Author(2),
-        NodeConfig::default(),
+        HashMap::new(),
         /* not used */ 0,
         /* not used */ 0,
     );
     let b = SignedValue::make(
         &mut context,
-        Block_::<SimulatedContext<NodeConfig>> {
+        Block_::<SimulatedContext> {
             command: Command {
                 proposer: Author(1),
                 index: 2,
@@ -33,7 +33,7 @@ fn test_block_signing() {
 
     let b2 = SignedValue::make(
         &mut context,
-        Block_::<SimulatedContext<NodeConfig>> {
+        Block_::<SimulatedContext> {
             command: Command {
                 proposer: Author(3),
                 index: 2,

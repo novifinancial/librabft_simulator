@@ -5,12 +5,22 @@ use super::*;
 use crate::{node::NodeConfig, record::BlockHash};
 use bft_lib::{simulated_context::*, smr_context::*};
 use futures::executor::block_on;
+use serde_json;
+
+fn make_database() -> HashMap<String, Vec<u8>> {
+    let mut map = HashMap::new();
+    map.insert(
+        "config".to_string(),
+        serde_json::to_vec(&NodeConfig::default()).unwrap(),
+    );
+    map
+}
 
 #[test]
 fn test_node() {
     let mut context = SimulatedContext::new(
         Author(0),
-        NodeConfig::default(),
+        make_database(),
         /* num_nodes */ 1,
         /* max commands per epoch */ 2,
     );
@@ -40,7 +50,7 @@ fn test_node() {
 
     let v0 = SignedValue::make(
         &mut context,
-        Vote_::<SimulatedContext<NodeConfig>> {
+        Vote_::<SimulatedContext> {
             epoch_id,
             round: Round(1),
             certified_block_hash: block_hash,

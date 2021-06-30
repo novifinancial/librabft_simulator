@@ -3,6 +3,7 @@
 
 use crate::{base_types::*, configuration::EpochConfiguration, smr_context::*};
 use anyhow::ensure;
+use futures::future;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -71,9 +72,9 @@ impl SimulatedLedgerState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SimulatedContext<Config> {
+pub struct SimulatedContext {
     author: Author,
-    config: Config,
+    database: HashMap<String, Vec<u8>>,
     num_nodes: usize,
     max_command_per_epoch: usize,
     next_fetched_command_index: usize,
@@ -81,16 +82,16 @@ pub struct SimulatedContext<Config> {
     pending_ledger_states: HashMap<State, SimulatedLedgerState>,
 }
 
-impl<Config> SimulatedContext<Config> {
+impl SimulatedContext {
     pub fn new(
         author: Author,
-        config: Config,
+        database: HashMap<String, Vec<u8>>,
         num_nodes: usize,
         max_command_per_epoch: usize,
     ) -> Self {
         SimulatedContext {
             author,
-            config,
+            database,
             num_nodes,
             max_command_per_epoch,
             next_fetched_command_index: 0,
@@ -116,12 +117,12 @@ impl<Config> SimulatedContext<Config> {
     }
 }
 
-impl<Config> SmrTypes for SimulatedContext<Config> {
+impl SmrTypes for SimulatedContext {
     type State = State;
     type Command = Command;
 }
 
-impl<Config> CommandFetcher<Command> for SimulatedContext<Config> {
+impl CommandFetcher<Command> for SimulatedContext {
     fn fetch(&mut self) -> Option<Command> {
         let command = Command {
             proposer: self.author,
@@ -132,7 +133,7 @@ impl<Config> CommandFetcher<Command> for SimulatedContext<Config> {
     }
 }
 
-impl<Config> CommandExecutor<Author, State, Command> for SimulatedContext<Config> {
+impl CommandExecutor<Author, State, Command> for SimulatedContext {
     fn compute(
         &mut self,
         base_state: &State,
@@ -163,9 +164,13 @@ impl<Config> CommandExecutor<Author, State, Command> for SimulatedContext<Config
             }
         }
     }
+
+    fn initial_state(&self) -> State {
+        SimulatedLedgerState::new().key()
+    }
 }
 
-impl<Config> StateFinalizer<State> for SimulatedContext<Config> {
+impl StateFinalizer<State> for SimulatedContext {
     fn commit(&mut self, state: &State, certificate: Option<&dyn CommitCertificate<State>>) {
         info!("{:?} Delivering commit for state: {:?}", self.author, state);
         let ledger_state = self
@@ -200,7 +205,7 @@ impl<Config> StateFinalizer<State> for SimulatedContext<Config> {
     }
 }
 
-impl<Config> EpochReader<Author, State> for SimulatedContext<Config> {
+impl EpochReader<Author, State> for SimulatedContext {
     fn read_epoch_id(&self, state: &State) -> EpochId {
         let num_commands = self
             .get_ledger_state(state)
@@ -233,7 +238,7 @@ impl std::io::Write for SimulatedHasher {
     }
 }
 
-impl<Config> CryptographicModule for SimulatedContext<Config> {
+impl CryptographicModule for SimulatedContext {
     type Hasher = SimulatedHasher;
     type Author = Author;
     type Signature = Signature;
@@ -265,16 +270,16 @@ impl<Config> CryptographicModule for SimulatedContext<Config> {
     }
 }
 
-impl<Config> Storage<State> for SimulatedContext<Config> {
-    type Config = Config;
-
-    fn config(&self) -> &Config {
-        &self.config
+impl Storage for SimulatedContext {
+    fn read_value(&mut self, key: String) -> AsyncResult<Option<Vec<u8>>> {
+        let value = self.database.get(&key).cloned();
+        Box::pin(future::ready(value))
     }
 
-    fn state(&self) -> State {
-        self.last_committed_state()
+    fn store_value(&mut self, key: String, value: Vec<u8>) -> AsyncResult<()> {
+        self.database.insert(key, value);
+        Box::pin(future::ready(()))
     }
 }
 
-impl<Config> SmrContext for SimulatedContext<Config> where Config: Eq + Clone + Debug + 'static {}
+impl SmrContext for SimulatedContext {}
