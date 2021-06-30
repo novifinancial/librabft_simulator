@@ -8,10 +8,10 @@ use std::{fmt::Debug, hash::Hash};
 // -- BEGIN FILE smr_apis --
 pub trait SmrTypes {
     /// An execution state.
-    type State: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static;
+    type State: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static + Send;
 
     /// A sequence of transactions.
-    type Command: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static;
+    type Command: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static + Send;
 }
 
 pub trait CommandFetcher<Command> {
@@ -97,13 +97,13 @@ pub trait CryptographicModule {
     type Hasher: std::io::Write;
 
     /// The identity (ie. public key) of a node.
-    type Author: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
+    type Author: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static + Send;
 
     /// The type of signature values.
-    type Signature: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
+    type Signature: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static + Send;
 
     /// The type of hash values.
-    type HashValue: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static;
+    type HashValue: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static + Send;
 
     /// Hash the given message, including a type-based seed.
     fn hash(&self, message: &dyn Signable<Self::Hasher>) -> Self::HashValue;

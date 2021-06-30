@@ -163,7 +163,9 @@ where
     (public, secret)
 }
 
-#[derive(Serialize, Deserialize, Clone, Default, Debug, Hash, Copy, PartialOrd, Ord, Eq, PartialEq)]
+#[derive(
+    Serialize, Deserialize, Clone, Default, Debug, Hash, Copy, PartialOrd, Ord, Eq, PartialEq,
+)]
 pub struct Signature {
     part1: [u8; 32],
     part2: [u8; 32],

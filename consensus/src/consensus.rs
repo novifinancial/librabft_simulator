@@ -36,6 +36,7 @@ impl Consensus {
     where
         Node: ConsensusNode<Context>
             + Send
+            + Sync
             + 'static
             + DataSyncNode<
                 Context,
@@ -84,7 +85,7 @@ impl Consensus {
         let mempool_driver = MempoolDriver::new(tx_consensus_mempool);
 
         // Spawn the core driver.
-        let mut core_driver = CoreDriver::<Node>::new(
+        CoreDriver::<Node>::spawn(
             name,
             committee,
             parameters,
@@ -95,10 +96,6 @@ impl Consensus {
             /* network_channel */ tx_network,
             /* commit_channel */ tx_commit,
         );
-        //tokio::spawn(async move {
-        //    core_driver.run().await;
-        //});
-
         Ok(())
     }
 }

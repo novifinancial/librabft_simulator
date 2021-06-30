@@ -60,11 +60,13 @@ where
             Notification = DataSyncNotification<Context>,
             Request = DataSyncRequest,
             Response = DataSyncResponse<Context>,
-        >,
+        > + Send
+        + Sync
+        + 'static,
     Context: SmrContext,
 {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn spawn(
         name: PublicKey,
         committee: Committee,
         parameters: Parameters,
@@ -74,7 +76,7 @@ where
         core_channel: Receiver<ConsensusMessage>,
         network_channel: Sender<NetMessage>,
         commit_channel: Sender<Block>,
-    ) -> Self {
+    ) {
         let mut context = Context::new(
             name,
             committee,
@@ -85,16 +87,20 @@ where
         let node = block_on(Node::load_node(&mut context, Self::local_time()));
         let timer = Timer::new(parameters.timeout_delay);
 
-        Self {
-            name,
-            store,
-            core_channel,
-            network_channel,
-            commit_channel,
-            context,
-            node,
-            timer,
-        }
+        tokio::spawn(async move {
+            Self {
+                name,
+                store,
+                core_channel,
+                network_channel,
+                commit_channel,
+                context,
+                node,
+                timer,
+            }
+            .run()
+            .await;
+        });
     }
 
     fn local_time() -> NodeTime {
@@ -143,7 +149,7 @@ where
                         ConsensusMessage::DataSyncNotify{receiver, sender, notification} => {
                             let result = self.node.handle_notification(&mut self.context, notification).await;
                             let actions = self.node.update_node(&mut self.context, Self::local_time());
-                            if let Some(request) = result {
+                            if let Some(_request) = result {
                                 // TODO: Send request through the network.
                             }
                             self.process_node_actions(actions).await;
