@@ -61,7 +61,7 @@ pub struct DataSyncResponse<Context: SmrContext> {
 
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
     fn create_request_internal(&self) -> DataSyncRequest {
         DataSyncRequest {
@@ -73,7 +73,7 @@ where
 
 impl<Context> DataSyncNode<Context> for NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
     type Notification = DataSyncNotification<Context>;
     type Request = DataSyncRequest;
@@ -176,7 +176,7 @@ where
         } else {
             None
         };
-        Box::new(future::ready(value))
+        Box::pin(future::ready(value))
     }
 
     fn create_request(&self) -> Self::Request {
@@ -206,7 +206,7 @@ where
             current_epoch: self.epoch_id(),
             records,
         };
-        Box::new(future::ready(value))
+        Box::pin(future::ready(value))
     }
 
     fn handle_response(
@@ -239,6 +239,6 @@ where
             self.process_commits(smr_context);
             self.update_tracker(clock);
         }
-        Box::new(future::ready(()))
+        Box::pin(future::ready(()))
     }
 }

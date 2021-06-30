@@ -11,6 +11,8 @@ use bft_lib::{
 };
 use futures::future;
 use log::debug;
+use serde::{Deserialize, Serialize};
+use serde_json;
 use std::{
     cmp::{max, min},
     collections::HashMap,
@@ -71,7 +73,7 @@ impl CommitTracker {
 
 /// Persistent configuration of LibraBFTv2 node.
 /// We avoid floats to make sure `Eq` is implemented.
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(test, derive(Default))]
 pub struct NodeConfig {
     pub target_commit_interval: Duration,
@@ -82,7 +84,7 @@ pub struct NodeConfig {
 
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
     fn new(
         author: Context::Author,
@@ -91,7 +93,7 @@ where
         node_time: NodeTime,
         context: &Context,
     ) -> Self {
-        let epoch_id = EpochId(0);
+        let epoch_id = context.read_epoch_id(&initial_state);
         let tracker = CommitTracker::new(epoch_id, node_time, config.target_commit_interval);
         let record_store = RecordStoreState::new(
             Self::initial_hash(context, epoch_id),
@@ -214,19 +216,26 @@ impl<Context: SmrContext> NodeState<Context> {
 // -- BEGIN FILE consensus_node_impl --
 impl<Context> ConsensusNode<Context> for NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
     fn load_node(context: &mut Context, node_time: NodeTime) -> AsyncResult<Self> {
-        let author = context.author();
-        let config = context.config().clone();
-        let state = context.state();
-        let node = NodeState::new(author, config, state, node_time, &*context);
-        Box::new(future::ready(node))
+        Box::pin(async move {
+            let author = context.author();
+            let config = serde_json::from_slice(
+                &context
+                    .read_value("config".to_string())
+                    .await
+                    .expect("missing config value"),
+            )
+            .expect("failed to load node config");
+            let state = context.initial_state();
+            NodeState::new(author, config, state, node_time, &*context)
+        })
     }
 
     fn save_node(&mut self, _context: &mut Context) -> AsyncResult<()> {
         // TODO
-        Box::new(future::ready(()))
+        Box::pin(future::ready(()))
     }
 
     fn update_node(
@@ -300,7 +309,7 @@ where
 // -- BEGIN FILE process_commits --
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
     pub(crate) fn process_commits(&mut self, context: &mut Context) {
         // For all commits that have not been processed yet, according to the commit tracker..

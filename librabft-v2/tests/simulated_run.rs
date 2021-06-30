@@ -13,17 +13,15 @@ use librabft_v2::{
     node::{NodeConfig, NodeState},
 };
 
-type Context = SimulatedContext<NodeConfig>;
-
 fn make_simulator(
     seed: u64,
     nodes: usize,
 ) -> simulator::Simulator<
-    NodeState<Context>,
-    Context,
-    DataSyncNotification<Context>,
+    NodeState<SimulatedContext>,
+    SimulatedContext,
+    DataSyncNotification<SimulatedContext>,
     DataSyncRequest,
-    DataSyncResponse<Context>,
+    DataSyncResponse<SimulatedContext>,
 > {
     let context_factory = |author, num_nodes| {
         let config = NodeConfig {
@@ -32,7 +30,9 @@ fn make_simulator(
             gamma_times_100: 200,
             lambda_times_100: 50,
         };
-        SimulatedContext::new(author, config, num_nodes, 30000)
+        let mut database = std::collections::HashMap::new();
+        database.insert("config".to_string(), serde_json::to_vec(&config).unwrap());
+        SimulatedContext::new(author, database, num_nodes, 30000)
     };
     let delay_distribution = simulator::RandomDelay::new(10.0, 4.0);
     simulator::Simulator::new(seed, nodes, delay_distribution, context_factory)
