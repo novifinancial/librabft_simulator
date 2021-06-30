@@ -1,5 +1,4 @@
 use crate::config::Committee;
-use crate::mempool::MempoolDriver;
 use bft_lib::base_types::{EpochId, NodeTime, Result};
 use bft_lib::configuration::EpochConfiguration;
 use bft_lib::smr_context::*;
@@ -7,30 +6,34 @@ use crypto::{Digest, PublicKey, Signature, SignatureService};
 use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::convert::TryInto as _;
+use store::Store;
 
 pub struct Context {
     name: PublicKey,
     committee: Committee,
+    _store: Store,
     _signature_service: SignatureService,
-    _mempool_driver: MempoolDriver,
     _max_payload_size: usize,
+    pub mempool: VecDeque<Command>,
 }
 
 impl Context {
     pub fn new(
         name: PublicKey,
         committee: Committee,
+        store: Store,
         signature_service: SignatureService,
-        mempool_driver: MempoolDriver,
         max_payload_size: usize,
     ) -> Self {
         Self {
             name,
             committee,
+            _store: store,
             _signature_service: signature_service,
-            _mempool_driver: mempool_driver,
             _max_payload_size: max_payload_size,
+            mempool: VecDeque::new(),
         }
     }
 }
@@ -85,24 +88,16 @@ impl SmrContext for Context {}
 pub type Author = PublicKey;
 
 pub type State = u64;
-pub type Command = Vec<Digest>;
+pub type Command = Vec<u8>;
 
 impl SmrTypes for Context {
     type State = State;
     type Command = Command;
 }
 
-// TODO: Make the mempool sync to implement the `CommandFetcher`.
 impl CommandFetcher<Command> for Context {
     fn fetch(&mut self) -> Option<Command> {
-        /*
-        let payload = self
-            .mempool_driver
-            .get(self.max_payload_size)
-            .await;
-        Some(payload)
-        */
-        Some(Command::default())
+        self.mempool.pop_front()
     }
 }
 

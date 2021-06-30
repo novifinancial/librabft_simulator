@@ -1,15 +1,14 @@
 use crate::config::{Committee, Parameters};
 use crate::context::Context;
 use crate::core::{ConsensusMessage, CoreDriver};
-use crate::error::ConsensusResult;
-use crate::mempool::{ConsensusMempoolMessage, MempoolDriver};
-use crate::messages::Block;
 use bft_lib::interfaces::{ConsensusNode, DataSyncNode};
 use bft_lib::smr_context::SmrContext;
 use crypto::{PublicKey, SignatureService};
 use librabft_v2::data_sync::{DataSyncNotification, DataSyncRequest, DataSyncResponse};
 use log::info;
 use network::{NetReceiver, NetSender};
+use serde::{de::DeserializeOwned, Serialize};
+use std::fmt::Debug;
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -22,18 +21,16 @@ pub struct Consensus;
 
 impl Consensus {
     #[allow(clippy::too_many_arguments)]
-    pub async fn run<Node>(
+    pub async fn run<Node, Payload>(
         name: PublicKey,
         committee: Committee,
         parameters: Parameters,
         store: Store,
         signature_service: SignatureService,
-        tx_core: Sender<ConsensusMessage>,
-        rx_core: Receiver<ConsensusMessage>,
-        tx_consensus_mempool: Sender<ConsensusMempoolMessage>,
-        tx_commit: Sender<Block>,
-    ) -> ConsensusResult<()>
-    where
+        tx_consensus: Sender<ConsensusMessage>,
+        rx_consensus: Receiver<ConsensusMessage>,
+        rx_mempool: Receiver<Payload>,
+    ) where
         Node: ConsensusNode<Context>
             + Send
             + Sync
@@ -45,6 +42,7 @@ impl Consensus {
                 Response = DataSyncResponse<Context>,
             >,
         Context: SmrContext,
+        Payload: Send + 'static + Default + Serialize + DeserializeOwned + Debug,
     {
         // NOTE: The following log entries are used to compute performance.
         info!(
@@ -64,14 +62,17 @@ impl Consensus {
             parameters.min_block_delay
         );
 
-        let (tx_network, rx_network) = channel(1000);
+        let (tx_network, rx_network) = channel(1_000);
 
         // Make the network sender and receiver.
-        let address = committee.address(&name).map(|mut x| {
-            x.set_ip("0.0.0.0".parse().unwrap());
-            x
-        })?;
-        let network_receiver = NetReceiver::new(address, tx_core.clone());
+        let address = committee
+            .address(&name)
+            .map(|mut x| {
+                x.set_ip("0.0.0.0".parse().unwrap());
+                x
+            })
+            .expect("Our public key is not in the committee");
+        let network_receiver = NetReceiver::new(address, tx_consensus);
         tokio::spawn(async move {
             network_receiver.run().await;
         });
@@ -82,20 +83,18 @@ impl Consensus {
         });
 
         // Make the mempool driver which will mediate our requests to the mempool.
-        let mempool_driver = MempoolDriver::new(tx_consensus_mempool);
+        //let mempool_driver = MempoolDriver::new(tx_consensus_mempool);
 
         // Spawn the core driver.
-        CoreDriver::<Node>::spawn(
+        CoreDriver::<Node, Payload>::spawn(
             name,
             committee,
             parameters,
             signature_service,
             store,
-            mempool_driver,
-            /* core_channel */ rx_core,
-            /* network_channel */ tx_network,
-            /* commit_channel */ tx_commit,
+            rx_consensus,
+            rx_mempool,
+            tx_network,
         );
-        Ok(())
     }
 }

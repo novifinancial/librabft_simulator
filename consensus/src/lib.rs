@@ -7,9 +7,9 @@ mod config;
 mod consensus;
 pub mod core; // TODO: This module can be private.
               //mod leader;
-mod mempool;
-mod messages;
-//mod synchronizer;
+              // mod mempool;
+              //mod messages;
+              //mod synchronizer;
 mod context;
 mod timer;
 
@@ -21,5 +21,4 @@ pub use crate::config::{Committee, Parameters};
 pub use crate::consensus::Consensus;
 pub use crate::core::{ConsensusMessage, RoundNumber};
 pub use crate::error::ConsensusError;
-pub use crate::mempool::{ConsensusMempoolMessage, PayloadStatus};
-pub use crate::messages::{Block, QC, TC};
+//pub use crate::mempool::{ConsensusMempoolMessage, PayloadStatus};
