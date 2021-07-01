@@ -5,9 +5,11 @@
 
 use bft_lib::{
     base_types::*,
+    interfaces::ConsensusNode,
     simulated_context::{SimulatedContext, State},
     simulator,
 };
+use futures::executor::block_on;
 use librabft_v2::{
     data_sync::*,
     node::{NodeConfig, NodeState},
@@ -24,15 +26,18 @@ fn make_simulator(
     DataSyncResponse<SimulatedContext>,
 > {
     let context_factory = |author, num_nodes| {
+        let mut context =
+            SimulatedContext::new(author, std::collections::HashMap::new(), num_nodes, 30000);
         let config = NodeConfig {
             target_commit_interval: Duration(100000),
             delta: Duration(20),
             gamma_times_100: 200,
             lambda_times_100: 50,
         };
-        let mut database = std::collections::HashMap::new();
-        database.insert("config".to_string(), serde_json::to_vec(&config).unwrap());
-        SimulatedContext::new(author, database, num_nodes, 30000)
+        let initial_state = context.last_committed_state();
+        let mut node = NodeState::new(author, config, initial_state, NodeTime(0), &context);
+        block_on(node.save_node(&mut context)).unwrap();
+        context
     };
     let delay_distribution = simulator::RandomDelay::new(10.0, 4.0);
     simulator::Simulator::new(seed, nodes, delay_distribution, context_factory)

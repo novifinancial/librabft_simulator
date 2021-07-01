@@ -4,15 +4,14 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{pacemaker::*, record::*, record_store::*};
+use anyhow::anyhow;
 use bft_lib::{
     base_types::*,
     interfaces::{ConsensusNode, NodeUpdateActions},
     smr_context::SmrContext,
 };
-use futures::future;
 use log::debug;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::{
     cmp::{max, min},
     collections::HashMap,
@@ -23,7 +22,9 @@ use std::{
 mod node_tests;
 
 // -- BEGIN FILE node_state --
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(bound(serialize = "Context: SmrContext"))]
+#[serde(bound(deserialize = "Context: SmrContext"))]
 pub struct NodeState<Context: SmrContext> {
     /// Module dedicated to storing records for the current epoch.
     record_store: RecordStoreState<Context>,
@@ -47,7 +48,7 @@ pub struct NodeState<Context: SmrContext> {
 // -- END FILE --
 
 // -- BEGIN FILE commit_tracker --
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct CommitTracker {
     /// Latest epoch identifier that was processed.
     epoch_id: EpochId,
@@ -71,9 +72,8 @@ impl CommitTracker {
     }
 }
 
-/// Persistent configuration of LibraBFTv2 node.
-/// We avoid floats to make sure `Eq` is implemented.
-#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+/// Initial configuration of LibraBFTv2 node.
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(test, derive(Default))]
 pub struct NodeConfig {
     pub target_commit_interval: Duration,
@@ -86,7 +86,7 @@ impl<Context> NodeState<Context>
 where
     Context: SmrContext,
 {
-    fn new(
+    pub fn new(
         author: Context::Author,
         config: NodeConfig,
         initial_state: Context::State,
@@ -220,23 +220,31 @@ where
 {
     fn load_node(context: &mut Context, node_time: NodeTime) -> AsyncResult<Self> {
         Box::pin(async move {
-            let author = context.author();
-            let config = serde_json::from_slice(
-                &context
-                    .read_value("config".to_string())
-                    .await
-                    .expect("failed to load node config")
-                    .expect("missing config value"),
-            )
-            .expect("failed to deserialize node config");
-            let state = context.initial_state();
-            Ok(NodeState::new(author, config, state, node_time, &*context))
+            let value = context
+                .read_value("node_state".to_string())
+                .await?
+                .ok_or(anyhow!("missing state value"))?;
+            let node: Self = bincode::deserialize(&value)?;
+            let previous_time = std::cmp::max(
+                node.latest_query_all_time,
+                std::cmp::max(
+                    node.tracker.latest_commit_time,
+                    node.pacemaker.active_round_start_time,
+                ),
+            );
+            anyhow::ensure!(
+                node_time >= previous_time,
+                "refusing to restore saved state from the future"
+            );
+            Ok(node)
         })
     }
 
-    fn save_node(&mut self, _context: &mut Context) -> AsyncResult<()> {
-        // TODO
-        Box::pin(future::ready(Ok(())))
+    fn save_node<'a>(&'a mut self, context: &'a mut Context) -> AsyncResult<()> {
+        Box::pin(async move {
+            let value = bincode::serialize(&*self)?;
+            context.store_value("node_state".to_string(), value).await
+        })
     }
 
     fn update_node(

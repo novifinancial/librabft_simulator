@@ -12,6 +12,7 @@ use bft_lib::{
     smr_context::{SignedValue, SmrContext},
 };
 use log::{debug, info, warn};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeSet, HashMap},
     fmt::Debug,
@@ -86,7 +87,9 @@ pub(crate) trait RecordStore<Context: SmrContext> {
 // -- END FILE --
 
 // -- BEGIN FILE record_store_state --
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(bound(serialize = "Context: SmrContext"))]
+#[serde(bound(deserialize = "Context: SmrContext"))]
 pub struct RecordStoreState<Context: SmrContext> {
     /// Epoch initialization.
     epoch_id: EpochId,
@@ -116,7 +119,9 @@ pub struct RecordStoreState<Context: SmrContext> {
 }
 
 /// Counting votes for a proposed block and its execution state.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(bound(serialize = "Context: SmrContext"))]
+#[serde(bound(deserialize = "Context: SmrContext"))]
 enum ElectionState<Context: SmrContext> {
     Ongoing {
         ballot: HashMap<(BlockHash<Context::HashValue>, Context::State), usize>,

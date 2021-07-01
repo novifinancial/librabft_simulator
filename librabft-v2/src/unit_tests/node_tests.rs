@@ -5,29 +5,30 @@ use super::*;
 use crate::{node::NodeConfig, record::BlockHash};
 use bft_lib::{simulated_context::*, smr_context::*};
 use futures::executor::block_on;
-use serde_json;
-
-fn make_database() -> HashMap<String, Vec<u8>> {
-    let mut map = HashMap::new();
-    map.insert(
-        "config".to_string(),
-        serde_json::to_vec(&NodeConfig::default()).unwrap(),
-    );
-    map
-}
 
 #[test]
 fn test_node() {
     let mut context = SimulatedContext::new(
         Author(0),
-        make_database(),
+        std::collections::HashMap::new(),
         /* num_nodes */ 1,
         /* max commands per epoch */ 2,
     );
+    let initial_state = context.last_committed_state();
+    let mut node0 = NodeState::new(
+        Author(0),
+        NodeConfig::default(),
+        initial_state.clone(),
+        NodeTime(0),
+        &context,
+    );
+    block_on(node0.save_node(&mut context)).unwrap();
+
+    let mut node1 = block_on(NodeState::load_node(&mut context, NodeTime(0))).unwrap();
+    assert_eq!(node0, node1);
+
     let epoch_id = EpochId(0);
     let initial_hash = QuorumCertificateHash(context.hash(&epoch_id));
-    let initial_state = context.last_committed_state();
-    let mut node1 = block_on(NodeState::load_node(&mut context, NodeTime(0))).unwrap();
 
     // Make a sequence of blocks / QCs
     let cmd = context.fetch().unwrap();

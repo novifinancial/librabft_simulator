@@ -6,6 +6,7 @@ use bft_lib::{
     base_types::{Duration, EpochId, NodeTime, Round},
     smr_context::SmrContext,
 };
+use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
 
 #[cfg(test)]
@@ -55,7 +56,7 @@ pub(crate) trait Pacemaker<Context: SmrContext> {
 // -- END FILE --
 
 // -- BEGIN FILE pacemaker_state --
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct PacemakerState<Context: SmrContext> {
     /// Active epoch.
     active_epoch: EpochId,
@@ -64,7 +65,7 @@ pub(crate) struct PacemakerState<Context: SmrContext> {
     /// Leader of the active round.
     active_leader: Option<Context::Author>,
     /// Time at which we entered the round.
-    active_round_start_time: NodeTime,
+    pub(crate) active_round_start_time: NodeTime,
     /// Maximal duration of the current round.
     active_round_duration: Duration,
     /// Maximal duration of the first round after a commit rule.
