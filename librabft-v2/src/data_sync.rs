@@ -79,7 +79,7 @@ where
     type Request = DataSyncRequest;
     type Response = DataSyncResponse<Context>;
 
-    fn create_notification(&self) -> Self::Notification {
+    fn create_notification(&self, context: &Context) -> Self::Notification {
         // Pass the latest (non-empty) commit certificate across epochs.
         let highest_commit_certificate = match self.record_store().highest_commit_certificate() {
             Some(hqc) => Some(hqc.clone()),
@@ -95,14 +95,11 @@ where
             highest_commit_certificate,
             highest_quorum_certificate: self.record_store().highest_quorum_certificate().cloned(),
             timeouts: self.record_store().timeouts(),
-            current_vote: self
-                .record_store()
-                .current_vote(self.local_author())
-                .cloned(),
+            current_vote: self.record_store().current_vote(context.author()).cloned(),
             proposed_block: match self.record_store().proposed_block(self.pacemaker()) {
                 Some((hash, _, author)) => {
                     // Do not reshare other leaders' proposals.
-                    if author == self.local_author() {
+                    if author == context.author() {
                         Some(self.record_store().block(hash).unwrap().clone())
                     } else {
                         None
@@ -179,7 +176,7 @@ where
         Box::pin(future::ready(value))
     }
 
-    fn create_request(&self) -> Self::Request {
+    fn create_request(&self, _context: &Context) -> Self::Request {
         self.create_request_internal()
     }
 

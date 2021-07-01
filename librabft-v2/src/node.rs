@@ -32,8 +32,6 @@ pub struct NodeState<Context: SmrContext> {
     pacemaker: PacemakerState<Context>,
     /// Current epoch.
     epoch_id: EpochId,
-    /// Identity of this node.
-    local_author: Context::Author,
     /// Highest round voted so far.
     latest_voted_round: Round,
     /// Current locked round.
@@ -89,7 +87,6 @@ where
     pub fn make_initial_state(context: &Context, config: NodeConfig, node_time: NodeTime) -> Self {
         let initial_state = context.last_committed_state();
         let epoch_id = context.read_epoch_id(&initial_state);
-        let author = context.author();
         let tracker = CommitTracker::new(epoch_id, node_time, config.target_commit_interval);
         let record_store = RecordStoreState::new(
             Self::initial_hash(context, epoch_id),
@@ -108,7 +105,6 @@ where
             record_store,
             pacemaker,
             epoch_id,
-            local_author: author,
             latest_voted_round: Round(0),
             locked_round: Round(0),
             latest_query_all_time: node_time,
@@ -123,10 +119,6 @@ where
 
     pub(crate) fn epoch_id(&self) -> EpochId {
         self.epoch_id
-    }
-
-    pub(crate) fn local_author(&self) -> Context::Author {
-        self.local_author
     }
 
     pub(crate) fn record_store(&self) -> &dyn RecordStore<Context> {
@@ -167,7 +159,9 @@ where
         } else {
             debug!(
                 "{:?} Skipped records outside the current epoch ({:?} instead of {:?})",
-                self.local_author, epoch_id, self.epoch_id
+                context.author(),
+                epoch_id,
+                self.epoch_id
             );
         }
     }
@@ -196,7 +190,7 @@ impl<Context: SmrContext> NodeState<Context> {
         };
         if let Some(round) = pacemaker_actions.should_create_timeout {
             self.record_store
-                .create_timeout(self.local_author, round, context);
+                .create_timeout(context.author(), round, context);
             // Prevent voting at a round for which we have created a timeout already.
             self.latest_voted_round.max_update(round);
         }
@@ -251,7 +245,7 @@ where
         // Update pacemaker state and process pacemaker actions (e.g., creating a timeout, proposing
         // a block).
         let pacemaker_actions = self.pacemaker.update_pacemaker(
-            self.local_author,
+            context.author(),
             self.epoch_id,
             &self.record_store,
             self.latest_query_all_time,
