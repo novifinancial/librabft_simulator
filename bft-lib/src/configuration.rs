@@ -3,15 +3,18 @@
 
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256StarStar;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, hash::Hash};
 
 #[cfg(test)]
 #[path = "unit_tests/configuration_tests.rs"]
 mod configuration_tests;
 
-#[derive(Clone, Debug)]
 /// Represent BFT permissions during an epoch. NOTE: The order of the nodes is recorded
 /// and will influence leader selections based on `pick_author`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound(serialize = "Author: Hash + Eq + Serialize"))]
+#[serde(bound(deserialize = "Author: Hash + Eq + Deserialize<'de>"))]
 pub struct EpochConfiguration<Author: Hash> {
     authors: Vec<(Author, usize)>,
     voting_rights: HashMap<Author, usize>,
@@ -69,5 +72,23 @@ where
             target -= *votes;
         }
         unreachable!()
+    }
+}
+
+impl<Author> PartialEq for EpochConfiguration<Author>
+where
+    Author: Hash + Eq + Clone,
+{
+    fn eq(&self, other: &Self) -> bool {
+        if self.authors != other.authors {
+            return false;
+        }
+        for (author, rights) in &self.authors {
+            if other.voting_rights.get(author) != Some(rights) {
+                return false;
+            }
+        }
+        assert_eq!(self.total_votes, other.total_votes);
+        true
     }
 }

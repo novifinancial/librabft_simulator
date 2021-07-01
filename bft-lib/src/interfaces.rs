@@ -45,7 +45,7 @@ pub trait ConsensusNode<Context: SmrContext>: Sized {
 
     /// Save the "staged" node state into storage, possibly after applying additional async
     /// operations.
-    fn save_node(&mut self, context: &mut Context) -> AsyncResult<()>;
+    fn save_node<'a>(&'a mut self, context: &'a mut Context) -> AsyncResult<'a, ()>;
 }
 // -- END FILE --
 
@@ -63,25 +63,25 @@ pub trait DataSyncNode<Context> {
     fn create_request(&self) -> Self::Request;
 
     /// Sender role: handle a request from a receiver.
-    fn handle_request(
-        &self,
-        context: &mut Context,
+    fn handle_request<'a>(
+        &'a self,
+        context: &'a mut Context,
         request: Self::Request,
-    ) -> Async<Self::Response>;
+    ) -> Async<'a, Self::Response>;
 
     /// Receiver role: accept or refuse a notification.
-    fn handle_notification(
-        &mut self,
-        context: &mut Context,
+    fn handle_notification<'a>(
+        &'a mut self,
+        context: &'a mut Context,
         notification: Self::Notification,
-    ) -> Async<Option<Self::Request>>;
+    ) -> Async<'a, Option<Self::Request>>;
 
     /// Receiver role: receive data.
-    fn handle_response(
-        &mut self,
-        context: &mut Context,
+    fn handle_response<'a>(
+        &'a mut self,
+        context: &'a mut Context,
         response: Self::Response,
         clock: NodeTime,
-    ) -> Async<()>;
+    ) -> Async<'a, ()>;
 }
 // -- END FILE --

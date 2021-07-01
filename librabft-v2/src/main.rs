@@ -3,8 +3,11 @@
 
 //! Main executable to run a simulation of LibraBFT v2.
 
-use bft_lib::{base_types::*, simulated_context::SimulatedContext, simulator};
+use bft_lib::{
+    base_types::*, interfaces::ConsensusNode, simulated_context::SimulatedContext, simulator,
+};
 use clap::{App, Arg};
+use futures::executor::block_on;
 use librabft_v2::{
     data_sync::*,
     node::{NodeConfig, NodeState},
@@ -18,16 +21,22 @@ fn main() {
     let seed = args.seed.unwrap_or_else(|| rand::thread_rng().gen());
     warn!("seed: {}", seed);
     let context_factory = |author, num_nodes| {
+        let mut context = SimulatedContext::new(
+            author,
+            std::collections::HashMap::new(),
+            num_nodes,
+            args.commands_per_epoch,
+        );
         let config = NodeConfig {
             target_commit_interval: args.target_commit_interval,
             delta: args.delta,
             gamma_times_100: (args.gamma * 100.) as u32,
             lambda_times_100: (args.lambda * 100.) as u32,
         };
-        warn!("config for {:?}: {:?}", author, config);
-        let mut database = std::collections::HashMap::new();
-        database.insert("config".to_string(), serde_json::to_vec(&config).unwrap());
-        SimulatedContext::new(author, database, num_nodes, args.commands_per_epoch)
+        let initial_state = context.last_committed_state();
+        let mut node = NodeState::new(author, config, initial_state, NodeTime(0), &context);
+        block_on(node.save_node(&mut context)).unwrap();
+        context
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
     let mut sim = simulator::Simulator::<
