@@ -57,10 +57,10 @@ pub trait DataSyncNode<Context> {
     type Response;
 
     /// Sender role: what to send to initiate a data-synchronization exchange with a receiver.
-    fn create_notification(&self) -> Self::Notification;
+    fn create_notification(&self, context: &Context) -> Self::Notification;
 
     /// Query role: what to send to initiate a query exchange and obtain data from a sender.
-    fn create_request(&self) -> Self::Request;
+    fn create_request(&self, context: &Context) -> Self::Request;
 
     /// Sender role: handle a request from a receiver.
     fn handle_request<'a>(
