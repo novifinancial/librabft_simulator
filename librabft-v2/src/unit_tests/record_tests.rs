@@ -3,16 +3,11 @@
 
 use super::*;
 use bft_lib::{simulated_context::*, smr_context::CryptographicModule};
-use std::collections::HashMap;
 
 #[test]
 fn test_block_signing() {
-    let mut context = SimulatedContext::new(
-        Author(2),
-        HashMap::new(),
-        /* not used */ 0,
-        /* not used */ 0,
-    );
+    let mut context =
+        SimulatedContext::new(Author(2), /* not used */ 0, /* not used */ 0);
     let b = SignedValue::make(
         &mut context,
         Block_::<SimulatedContext> {

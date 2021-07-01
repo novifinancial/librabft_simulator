@@ -78,22 +78,18 @@ impl CommitTracker {
 pub struct NodeConfig {
     pub target_commit_interval: Duration,
     pub delta: Duration,
-    pub gamma_times_100: u32,
-    pub lambda_times_100: u32,
+    pub gamma: f64,
+    pub lambda: f64,
 }
 
 impl<Context> NodeState<Context>
 where
     Context: SmrContext,
 {
-    pub fn new(
-        author: Context::Author,
-        config: NodeConfig,
-        initial_state: Context::State,
-        node_time: NodeTime,
-        context: &Context,
-    ) -> Self {
+    pub fn make_initial_state(context: &Context, config: NodeConfig, node_time: NodeTime) -> Self {
+        let initial_state = context.last_committed_state();
         let epoch_id = context.read_epoch_id(&initial_state);
+        let author = context.author();
         let tracker = CommitTracker::new(epoch_id, node_time, config.target_commit_interval);
         let record_store = RecordStoreState::new(
             Self::initial_hash(context, epoch_id),
@@ -105,8 +101,8 @@ where
             epoch_id,
             node_time,
             config.delta,
-            config.gamma_times_100 as f64 / 100.,
-            config.lambda_times_100 as f64 / 100.,
+            config.gamma,
+            config.lambda,
         );
         NodeState {
             record_store,

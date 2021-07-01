@@ -17,12 +17,7 @@ impl SharedRecordStore {
         for i in 0..num_nodes {
             contexts.insert(
                 Author(i),
-                SimulatedContext::new(
-                    Author(i),
-                    std::collections::HashMap::new(),
-                    num_nodes,
-                    epoch_ttl,
-                ),
+                SimulatedContext::new(Author(i), num_nodes, epoch_ttl),
             );
         }
         let state = contexts.get(&Author(0)).unwrap().last_committed_state();

@@ -21,20 +21,14 @@ fn main() {
     let seed = args.seed.unwrap_or_else(|| rand::thread_rng().gen());
     warn!("seed: {}", seed);
     let context_factory = |author, num_nodes| {
-        let mut context = SimulatedContext::new(
-            author,
-            std::collections::HashMap::new(),
-            num_nodes,
-            args.commands_per_epoch,
-        );
+        let mut context = SimulatedContext::new(author, num_nodes, args.commands_per_epoch);
         let config = NodeConfig {
             target_commit_interval: args.target_commit_interval,
             delta: args.delta,
-            gamma_times_100: (args.gamma * 100.) as u32,
-            lambda_times_100: (args.lambda * 100.) as u32,
+            gamma: args.gamma,
+            lambda: args.lambda,
         };
-        let initial_state = context.last_committed_state();
-        let mut node = NodeState::new(author, config, initial_state, NodeTime(0), &context);
+        let mut node = NodeState::make_initial_state(&context, config, NodeTime(0));
         block_on(node.save_node(&mut context)).unwrap();
         context
     };

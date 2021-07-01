@@ -83,25 +83,16 @@ pub struct SimulatedContext {
 }
 
 impl SimulatedContext {
-    pub fn new(
-        author: Author,
-        database: HashMap<String, Vec<u8>>,
-        num_nodes: usize,
-        max_command_per_epoch: usize,
-    ) -> Self {
+    pub fn new(author: Author, num_nodes: usize, max_command_per_epoch: usize) -> Self {
         SimulatedContext {
             author,
-            database,
+            database: HashMap::new(),
             num_nodes,
             max_command_per_epoch,
             next_fetched_command_index: 0,
             last_committed_ledger_state: SimulatedLedgerState::new(),
             pending_ledger_states: HashMap::new(),
         }
-    }
-
-    pub fn last_committed_state(&self) -> State {
-        self.last_committed_ledger_state.key()
     }
 
     pub fn committed_history(&self) -> &Vec<(Command, NodeTime)> {
@@ -164,10 +155,6 @@ impl CommandExecutor<Author, State, Command> for SimulatedContext {
             }
         }
     }
-
-    fn initial_state(&self) -> State {
-        SimulatedLedgerState::new().key()
-    }
 }
 
 impl StateFinalizer<State> for SimulatedContext {
@@ -202,6 +189,10 @@ impl StateFinalizer<State> for SimulatedContext {
         self.pending_ledger_states
             .remove(state)
             .expect("Discarded states should be known");
+    }
+
+    fn last_committed_state(&self) -> State {
+        self.last_committed_ledger_state.key()
     }
 }
 

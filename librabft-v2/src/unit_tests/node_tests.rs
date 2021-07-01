@@ -10,18 +10,10 @@ use futures::executor::block_on;
 fn test_node() {
     let mut context = SimulatedContext::new(
         Author(0),
-        std::collections::HashMap::new(),
         /* num_nodes */ 1,
         /* max commands per epoch */ 2,
     );
-    let initial_state = context.last_committed_state();
-    let mut node0 = NodeState::new(
-        Author(0),
-        NodeConfig::default(),
-        initial_state.clone(),
-        NodeTime(0),
-        &context,
-    );
+    let mut node0 = NodeState::make_initial_state(&context, NodeConfig::default(), NodeTime(0));
     block_on(node0.save_node(&mut context)).unwrap();
 
     let mut node1 = block_on(NodeState::load_node(&mut context, NodeTime(0))).unwrap();
@@ -29,6 +21,7 @@ fn test_node() {
 
     let epoch_id = EpochId(0);
     let initial_hash = QuorumCertificateHash(context.hash(&epoch_id));
+    let initial_state = context.last_committed_state();
 
     // Make a sequence of blocks / QCs
     let cmd = context.fetch().unwrap();

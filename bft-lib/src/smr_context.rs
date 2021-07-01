@@ -37,9 +37,6 @@ pub trait CommandExecutor<Author, State, Command> {
         // Suggest to reward the voters of the previous block, if any.
         previous_voters: Vec<Author>,
     ) -> Option<State>;
-
-    /// The initial state (aka "genesis") before any command is executed.
-    fn initial_state(&self) -> State;
 }
 
 /// A commit certificate.
@@ -60,6 +57,9 @@ pub trait StateFinalizer<State> {
 
     /// Report that a state was discarded.
     fn discard(&mut self, state: &State);
+
+    /// Obtain the last committed state, if any, and otherwise the genesis state.
+    fn last_committed_state(&self) -> State;
 }
 
 /// How to read epoch ids and configuration from a state.
