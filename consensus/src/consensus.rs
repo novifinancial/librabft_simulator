@@ -30,6 +30,7 @@ impl Consensus {
         tx_consensus: Sender<ConsensusMessage>,
         rx_consensus: Receiver<ConsensusMessage>,
         rx_mempool: Receiver<Payload>,
+        //tx_commit: Sender<CommitCertificate<State>>,
     ) where
         Node: ConsensusNode<Context>
             + Send
@@ -95,6 +96,7 @@ impl Consensus {
             rx_consensus,
             rx_mempool,
             tx_network,
+            //tx_commit
         );
     }
 }

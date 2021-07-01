@@ -5,8 +5,8 @@ use bft_lib::smr_context::*;
 use crypto::{Digest, PublicKey, Signature, SignatureService};
 use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
+use futures::executor::block_on;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use std::convert::TryInto as _;
 use store::Store;
 
@@ -14,9 +14,9 @@ pub struct Context {
     name: PublicKey,
     committee: Committee,
     _store: Store,
-    _signature_service: SignatureService,
+    signature_service: SignatureService,
     _max_payload_size: usize,
-    pub mempool: VecDeque<Command>,
+    pub buffer: Vec<Vec<u8>>,
 }
 
 impl Context {
@@ -31,9 +31,9 @@ impl Context {
             name,
             committee,
             _store: store,
-            _signature_service: signature_service,
+            signature_service,
             _max_payload_size: max_payload_size,
-            mempool: VecDeque::new(),
+            buffer: Vec::new(),
         }
     }
 }
@@ -88,7 +88,7 @@ impl SmrContext for Context {}
 pub type Author = PublicKey;
 
 pub type State = u64;
-pub type Command = Vec<u8>;
+pub type Command = Vec<Vec<u8>>;
 
 impl SmrTypes for Context {
     type State = State;
@@ -97,7 +97,8 @@ impl SmrTypes for Context {
 
 impl CommandFetcher<Command> for Context {
     fn fetch(&mut self) -> Option<Command> {
-        self.mempool.pop_front()
+        // Note: If we return None, LibraBFT-v2 will not propose the block.
+        Some(self.buffer.drain(..).collect())
     }
 }
 
@@ -110,19 +111,18 @@ impl CommandExecutor<Author, State, Command> for Context {
         _previous_author: Option<Author>,
         _previous_voters: Vec<Author>,
     ) -> Option<State> {
-        // This implementation does not execute, it is only a sequencing engine.
+        // TODO: Called before vote: This is where we verify the commands.
         None
     }
 }
 
 impl StateFinalizer<State> for Context {
     fn commit(&mut self, _state: &State, _certificate: Option<&dyn CommitCertificate<State>>) {
-        // Nothing to do here as we do not execute transactions (the `State` is always `None`).
+        // NOTE: Certificates come in the right order and only once.
+        // TODO: Send commit certificate out to application layer.
     }
 
-    fn discard(&mut self, _state: &State) {
-        // Nothing to do here as we do not execute transactions (the `State` is always `None`).
-    }
+    fn discard(&mut self, _state: &State) {}
 }
 
 // TODO: Implement epoch transition. Right now, we alway run within a single epoch.
@@ -168,13 +168,12 @@ impl CryptographicModule for Context {
     }
 
     // TODO [issue #8]: Make async to enable HSM implementations.
-    fn sign(&mut self, _hash: Self::HashValue) -> Self::Signature {
-        //self.signature_service.request_signature(hash).await
-        Signature::default()
+    fn sign(&mut self, hash: Self::HashValue) -> Self::Signature {
+        block_on(self.signature_service.request_signature(hash))
     }
 }
 
-// TODO:
+// TODO: Persist.
 impl Storage<State> for Context {
     type Config = u64;
 

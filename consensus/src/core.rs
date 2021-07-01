@@ -24,6 +24,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 pub type RoundNumber = u64;
 
+// TODO: So currently, the (non-simulated) Context only works for LibraBFTv2 messages?
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ConsensusMessage {
     DataSyncNotification {
@@ -45,6 +46,7 @@ pub struct CoreDriver<Node, Payload> {
     rx_consensus: Receiver<ConsensusMessage>,
     rx_mempool: Receiver<Payload>,
     tx_network: Sender<NetMessage>,
+    //tx_commit: Sender<CommitCertificate>,
     node: Node,
     context: Context,
     timer: Timer,
@@ -110,6 +112,7 @@ where
         )
     }
 
+    /// Send a message through the network.
     async fn transmit(
         &self,
         message: &ConsensusMessage,
@@ -200,7 +203,7 @@ where
                 },
                 Some(payload) = self.rx_mempool.recv() => {
                     let bytes = bincode::serialize(&payload).expect("Failed to serialize payload");
-                    self.context.mempool.push_back(bytes);
+                    self.context.buffer.push(bytes);
                     Ok(())
                 },
                 () = &mut self.timer => {
