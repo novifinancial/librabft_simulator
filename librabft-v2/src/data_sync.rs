@@ -117,7 +117,7 @@ where
         &mut self,
         smr_context: &mut Context,
         notification: Self::Notification,
-    ) -> AsyncResult<Option<Self::Request>> {
+    ) -> Async<Option<Self::Request>> {
         // Whether we should request more data because of a new epoch or missings records.
         let mut should_sync = false;
         // Note that malicious nodes can always lie to make us send a request, but they may as
@@ -187,7 +187,7 @@ where
         &self,
         _smr_context: &mut Context,
         request: Self::Request,
-    ) -> AsyncResult<Self::Response> {
+    ) -> Async<Self::Response> {
         let mut records = Vec::new();
         if let Some(store) = self.record_store_at(request.current_epoch) {
             records.push((
@@ -214,7 +214,7 @@ where
         smr_context: &mut Context,
         response: Self::Response,
         clock: NodeTime,
-    ) -> AsyncResult<()> {
+    ) -> Async<()> {
         let num_records = response.records.len();
         // Insert all the records in order.
         // Process the commits so that new epochs are created along the way.

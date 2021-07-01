@@ -27,7 +27,7 @@ fn test_node() {
     let epoch_id = EpochId(0);
     let initial_hash = QuorumCertificateHash(context.hash(&epoch_id));
     let initial_state = context.last_committed_state();
-    let mut node1 = block_on(NodeState::load_node(&mut context, NodeTime(0)));
+    let mut node1 = block_on(NodeState::load_node(&mut context, NodeTime(0))).unwrap();
 
     // Make a sequence of blocks / QCs
     let cmd = context.fetch().unwrap();

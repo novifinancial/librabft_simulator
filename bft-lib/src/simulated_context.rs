@@ -265,20 +265,20 @@ impl CryptographicModule for SimulatedContext {
         self.author
     }
 
-    fn sign(&mut self, hash: Self::HashValue) -> Result<Self::Signature> {
-        Ok(Signature(self.author.0, hash))
+    fn sign(&mut self, hash: Self::HashValue) -> Self::Signature {
+        Signature(self.author.0, hash)
     }
 }
 
 impl Storage for SimulatedContext {
     fn read_value(&mut self, key: String) -> AsyncResult<Option<Vec<u8>>> {
         let value = self.database.get(&key).cloned();
-        Box::pin(future::ready(value))
+        Box::pin(future::ready(Ok(value)))
     }
 
     fn store_value(&mut self, key: String, value: Vec<u8>) -> AsyncResult<()> {
         self.database.insert(key, value);
-        Box::pin(future::ready(()))
+        Box::pin(future::ready(Ok(())))
     }
 }
 

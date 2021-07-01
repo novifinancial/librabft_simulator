@@ -225,17 +225,18 @@ where
                 &context
                     .read_value("config".to_string())
                     .await
+                    .expect("failed to load node config")
                     .expect("missing config value"),
             )
-            .expect("failed to load node config");
+            .expect("failed to deserialize node config");
             let state = context.initial_state();
-            NodeState::new(author, config, state, node_time, &*context)
+            Ok(NodeState::new(author, config, state, node_time, &*context))
         })
     }
 
     fn save_node(&mut self, _context: &mut Context) -> AsyncResult<()> {
         // TODO
-        Box::pin(future::ready(()))
+        Box::pin(future::ready(Ok(())))
     }
 
     fn update_node(
