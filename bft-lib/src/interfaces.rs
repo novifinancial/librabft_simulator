@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    base_types::{AsyncResult, NodeTime},
+    base_types::{Async, AsyncResult, NodeTime},
     smr_context::SmrContext,
 };
 
@@ -67,14 +67,14 @@ pub trait DataSyncNode<Context> {
         &self,
         context: &mut Context,
         request: Self::Request,
-    ) -> AsyncResult<Self::Response>;
+    ) -> Async<Self::Response>;
 
     /// Receiver role: accept or refuse a notification.
     fn handle_notification(
         &mut self,
         context: &mut Context,
         notification: Self::Notification,
-    ) -> AsyncResult<Option<Self::Request>>;
+    ) -> Async<Option<Self::Request>>;
 
     /// Receiver role: receive data.
     fn handle_response(
@@ -82,6 +82,6 @@ pub trait DataSyncNode<Context> {
         context: &mut Context,
         response: Self::Response,
         clock: NodeTime,
-    ) -> AsyncResult<()>;
+    ) -> Async<()>;
 }
 // -- END FILE --

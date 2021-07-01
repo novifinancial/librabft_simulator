@@ -123,7 +123,7 @@ pub trait CryptographicModule {
 
     /// Sign a message using the private key of this node.
     // TODO: make async to enable HSM implementations.
-    fn sign(&mut self, hash: Self::HashValue) -> Result<Self::Signature>;
+    fn sign(&mut self, hash: Self::HashValue) -> Self::Signature;
 }
 
 pub trait Storage {
@@ -178,7 +178,7 @@ impl<T, S> SignedValue<T, S> {
     {
         assert_eq!(value.author(), context.author());
         let h = context.hash(&value);
-        let signature = context.sign(h).expect("Signing should not fail");
+        let signature = context.sign(h);
         SignedValue { value, signature }
     }
 
