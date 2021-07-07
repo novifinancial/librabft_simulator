@@ -218,7 +218,8 @@ where
                 let node_time = NodeTime(0);
                 let scheduled_time = GlobalTime::from_node_time(node_time, startup_time);
                 let event = Event::UpdateTimerEvent { author };
-                let node = block_on(Node::load_node(&mut context, node_time));
+                let node = block_on(Node::load_node(&mut context, node_time))
+                    .expect("loading nodes in simulator should not fail");
                 trace!(
                     "Scheduling initial event {:?} for time {:?}",
                     event,
@@ -302,9 +303,10 @@ where
             "@{:?} Processing node actions for {:?}: {:?}",
             clock, author, actions
         );
-        let mut node = self.nodes.get_mut(author.0).unwrap();
         // First, we must save the state of the node.
-        block_on(node.node.save_node(&mut node.context));
+        let mut node = self.simulated_node_mut(author);
+        block_on(node.node.save_node(&mut node.context))
+            .expect("saving nodes should not fail in simulator");
         // Then, schedule the next call to `update_node`.
         let new_scheduled_time = {
             let new_scheduled_time = std::cmp::max(
@@ -339,7 +341,10 @@ where
             }
         }
         receivers.shuffle(&mut self.rng);
-        let notification = self.simulated_node(author).node.create_notification();
+        let notification = {
+            let node = self.simulated_node(author);
+            node.node.create_notification(&node.context)
+        };
         for receiver in receivers {
             self.schedule_network_event(Event::DataSyncNotifyEvent {
                 sender: author,
@@ -357,7 +362,10 @@ where
                 }
             }
         }
-        let request = self.simulated_node(author).node.create_request();
+        let request = {
+            let node = self.simulated_node(author);
+            node.node.create_request(&node.context)
+        };
         let mut senders = senders.into_iter().collect::<Vec<_>>();
         senders.shuffle(&mut self.rng);
         for sender in senders {

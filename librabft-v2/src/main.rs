@@ -3,8 +3,11 @@
 
 //! Main executable to run a simulation of LibraBFT v2.
 
-use bft_lib::{base_types::*, simulated_context::SimulatedContext, simulator};
+use bft_lib::{
+    base_types::*, interfaces::ConsensusNode, simulated_context::SimulatedContext, simulator,
+};
 use clap::{App, Arg};
+use futures::executor::block_on;
 use librabft_v2::{
     data_sync::*,
     node::{NodeConfig, NodeState},
@@ -12,30 +15,30 @@ use librabft_v2::{
 use log::{info, warn};
 use rand::Rng;
 
-type Context = SimulatedContext<NodeConfig>;
-
 fn main() {
     let args = get_arguments();
     env_logger::init();
     let seed = args.seed.unwrap_or_else(|| rand::thread_rng().gen());
     warn!("seed: {}", seed);
     let context_factory = |author, num_nodes| {
+        let mut context = SimulatedContext::new(author, num_nodes, args.commands_per_epoch);
         let config = NodeConfig {
             target_commit_interval: args.target_commit_interval,
             delta: args.delta,
-            gamma_times_100: (args.gamma * 100.) as u32,
-            lambda_times_100: (args.lambda * 100.) as u32,
+            gamma: args.gamma,
+            lambda: args.lambda,
         };
-        warn!("config for {:?}: {:?}", author, config);
-        SimulatedContext::new(author, config, num_nodes, args.commands_per_epoch)
+        let mut node = NodeState::make_initial_state(&context, config, NodeTime(0));
+        block_on(node.save_node(&mut context)).unwrap();
+        context
     };
     let delay_distribution = simulator::RandomDelay::new(args.mean, args.variance);
     let mut sim = simulator::Simulator::<
-        NodeState<Context>,
-        Context,
-        DataSyncNotification<Context>,
+        NodeState<SimulatedContext>,
+        SimulatedContext,
+        DataSyncNotification<SimulatedContext>,
         DataSyncRequest,
-        DataSyncResponse<Context>,
+        DataSyncResponse<SimulatedContext>,
     >::new(seed, args.nodes, delay_distribution, context_factory);
     let contexts = sim.loop_until(
         simulator::GlobalTime(args.max_clock),

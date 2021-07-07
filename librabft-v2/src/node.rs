@@ -4,13 +4,14 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{pacemaker::*, record::*, record_store::*};
+use anyhow::anyhow;
 use bft_lib::{
     base_types::*,
     interfaces::{ConsensusNode, NodeUpdateActions},
     smr_context::SmrContext,
 };
-use futures::future;
 use log::debug;
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::{max, min},
     collections::HashMap,
@@ -21,7 +22,9 @@ use std::{
 mod node_tests;
 
 // -- BEGIN FILE node_state --
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(bound(serialize = "Context: SmrContext"))]
+#[serde(bound(deserialize = "Context: SmrContext"))]
 pub struct NodeState<Context: SmrContext> {
     /// Module dedicated to storing records for the current epoch.
     record_store: RecordStoreState<Context>,
@@ -29,8 +32,6 @@ pub struct NodeState<Context: SmrContext> {
     pacemaker: PacemakerState<Context>,
     /// Current epoch.
     epoch_id: EpochId,
-    /// Identity of this node.
-    local_author: Context::Author,
     /// Highest round voted so far.
     latest_voted_round: Round,
     /// Current locked round.
@@ -45,7 +46,7 @@ pub struct NodeState<Context: SmrContext> {
 // -- END FILE --
 
 // -- BEGIN FILE commit_tracker --
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct CommitTracker {
     /// Latest epoch identifier that was processed.
     epoch_id: EpochId,
@@ -69,29 +70,23 @@ impl CommitTracker {
     }
 }
 
-/// Persistent configuration of LibraBFTv2 node.
-/// We avoid floats to make sure `Eq` is implemented.
-#[derive(PartialEq, Eq, Clone, Debug)]
+/// Initial configuration of LibraBFTv2 node.
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(test, derive(Default))]
 pub struct NodeConfig {
     pub target_commit_interval: Duration,
     pub delta: Duration,
-    pub gamma_times_100: u32,
-    pub lambda_times_100: u32,
+    pub gamma: f64,
+    pub lambda: f64,
 }
 
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
-    fn new(
-        author: Context::Author,
-        config: NodeConfig,
-        initial_state: Context::State,
-        node_time: NodeTime,
-        context: &Context,
-    ) -> Self {
-        let epoch_id = EpochId(0);
+    pub fn make_initial_state(context: &Context, config: NodeConfig, node_time: NodeTime) -> Self {
+        let initial_state = context.last_committed_state();
+        let epoch_id = context.read_epoch_id(&initial_state);
         let tracker = CommitTracker::new(epoch_id, node_time, config.target_commit_interval);
         let record_store = RecordStoreState::new(
             Self::initial_hash(context, epoch_id),
@@ -103,14 +98,13 @@ where
             epoch_id,
             node_time,
             config.delta,
-            config.gamma_times_100 as f64 / 100.,
-            config.lambda_times_100 as f64 / 100.,
+            config.gamma,
+            config.lambda,
         );
         NodeState {
             record_store,
             pacemaker,
             epoch_id,
-            local_author: author,
             latest_voted_round: Round(0),
             locked_round: Round(0),
             latest_query_all_time: node_time,
@@ -125,10 +119,6 @@ where
 
     pub(crate) fn epoch_id(&self) -> EpochId {
         self.epoch_id
-    }
-
-    pub(crate) fn local_author(&self) -> Context::Author {
-        self.local_author
     }
 
     pub(crate) fn record_store(&self) -> &dyn RecordStore<Context> {
@@ -169,7 +159,9 @@ where
         } else {
             debug!(
                 "{:?} Skipped records outside the current epoch ({:?} instead of {:?})",
-                self.local_author, epoch_id, self.epoch_id
+                context.author(),
+                epoch_id,
+                self.epoch_id
             );
         }
     }
@@ -198,7 +190,7 @@ impl<Context: SmrContext> NodeState<Context> {
         };
         if let Some(round) = pacemaker_actions.should_create_timeout {
             self.record_store
-                .create_timeout(self.local_author, round, context);
+                .create_timeout(context.author(), round, context);
             // Prevent voting at a round for which we have created a timeout already.
             self.latest_voted_round.max_update(round);
         }
@@ -214,19 +206,35 @@ impl<Context: SmrContext> NodeState<Context> {
 // -- BEGIN FILE consensus_node_impl --
 impl<Context> ConsensusNode<Context> for NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
     fn load_node(context: &mut Context, node_time: NodeTime) -> AsyncResult<Self> {
-        let author = context.author();
-        let config = context.config().clone();
-        let state = context.state();
-        let node = NodeState::new(author, config, state, node_time, &*context);
-        Box::new(future::ready(node))
+        Box::pin(async move {
+            let value = context
+                .read_value("node_state".to_string())
+                .await?
+                .ok_or(anyhow!("missing state value"))?;
+            let node: Self = bincode::deserialize(&value)?;
+            let previous_time = std::cmp::max(
+                node.latest_query_all_time,
+                std::cmp::max(
+                    node.tracker.latest_commit_time,
+                    node.pacemaker.active_round_start_time,
+                ),
+            );
+            anyhow::ensure!(
+                node_time >= previous_time,
+                "refusing to restore saved state from the future"
+            );
+            Ok(node)
+        })
     }
 
-    fn save_node(&mut self, _context: &mut Context) -> AsyncResult<()> {
-        // TODO
-        Box::new(future::ready(()))
+    fn save_node<'a>(&'a mut self, context: &'a mut Context) -> AsyncResult<()> {
+        Box::pin(async move {
+            let value = bincode::serialize(&*self)?;
+            context.store_value("node_state".to_string(), value).await
+        })
     }
 
     fn update_node(
@@ -237,7 +245,7 @@ where
         // Update pacemaker state and process pacemaker actions (e.g., creating a timeout, proposing
         // a block).
         let pacemaker_actions = self.pacemaker.update_pacemaker(
-            self.local_author,
+            context.author(),
             self.epoch_id,
             &self.record_store,
             self.latest_query_all_time,
@@ -300,7 +308,7 @@ where
 // -- BEGIN FILE process_commits --
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
     pub(crate) fn process_commits(&mut self, context: &mut Context) {
         // For all commits that have not been processed yet, according to the commit tracker..

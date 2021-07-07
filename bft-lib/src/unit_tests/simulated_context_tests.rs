@@ -17,14 +17,13 @@ impl BcsSignable for Bar {}
 fn test_hashing_and_signing() {
     let mut context = SimulatedContext::new(
         Author(0),
-        (),
         /* num_nodes */ 2,
         /* max commands per epoch */ 2,
     );
     let h1 = context.hash(&Foo(35));
     let h2 = context.hash(&Bar(35));
 
-    let sig1 = context.sign(h1).unwrap();
+    let sig1 = context.sign(h1);
     assert!(context.verify(Author(0), h1, sig1).is_ok());
     assert!(context.verify(Author(1), h1, sig1).is_err());
     assert!(context.verify(Author(0), h2, sig1).is_err());
@@ -81,7 +80,6 @@ impl CommitCertificate<State> for DummyCertificate {
 fn test_simulated_context() {
     let mut context = SimulatedContext::new(
         Author(0),
-        (),
         /* num_nodes */ 2,
         /* max commands per epoch */ 2,
     );

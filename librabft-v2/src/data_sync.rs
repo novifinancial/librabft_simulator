@@ -61,7 +61,7 @@ pub struct DataSyncResponse<Context: SmrContext> {
 
 impl<Context> NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
     fn create_request_internal(&self) -> DataSyncRequest {
         DataSyncRequest {
@@ -73,13 +73,13 @@ where
 
 impl<Context> DataSyncNode<Context> for NodeState<Context>
 where
-    Context: SmrContext<Config = NodeConfig>,
+    Context: SmrContext,
 {
     type Notification = DataSyncNotification<Context>;
     type Request = DataSyncRequest;
     type Response = DataSyncResponse<Context>;
 
-    fn create_notification(&self) -> Self::Notification {
+    fn create_notification(&self, context: &Context) -> Self::Notification {
         // Pass the latest (non-empty) commit certificate across epochs.
         let highest_commit_certificate = match self.record_store().highest_commit_certificate() {
             Some(hqc) => Some(hqc.clone()),
@@ -95,14 +95,11 @@ where
             highest_commit_certificate,
             highest_quorum_certificate: self.record_store().highest_quorum_certificate().cloned(),
             timeouts: self.record_store().timeouts(),
-            current_vote: self
-                .record_store()
-                .current_vote(self.local_author())
-                .cloned(),
+            current_vote: self.record_store().current_vote(context.author()).cloned(),
             proposed_block: match self.record_store().proposed_block(self.pacemaker()) {
                 Some((hash, _, author)) => {
                     // Do not reshare other leaders' proposals.
-                    if author == self.local_author() {
+                    if author == context.author() {
                         Some(self.record_store().block(hash).unwrap().clone())
                     } else {
                         None
@@ -117,7 +114,7 @@ where
         &mut self,
         smr_context: &mut Context,
         notification: Self::Notification,
-    ) -> AsyncResult<Option<Self::Request>> {
+    ) -> Async<Option<Self::Request>> {
         // Whether we should request more data because of a new epoch or missings records.
         let mut should_sync = false;
         // Note that malicious nodes can always lie to make us send a request, but they may as
@@ -176,10 +173,10 @@ where
         } else {
             None
         };
-        Box::new(future::ready(value))
+        Box::pin(future::ready(value))
     }
 
-    fn create_request(&self) -> Self::Request {
+    fn create_request(&self, _context: &Context) -> Self::Request {
         self.create_request_internal()
     }
 
@@ -187,7 +184,7 @@ where
         &self,
         _smr_context: &mut Context,
         request: Self::Request,
-    ) -> AsyncResult<Self::Response> {
+    ) -> Async<Self::Response> {
         let mut records = Vec::new();
         if let Some(store) = self.record_store_at(request.current_epoch) {
             records.push((
@@ -206,7 +203,7 @@ where
             current_epoch: self.epoch_id(),
             records,
         };
-        Box::new(future::ready(value))
+        Box::pin(future::ready(value))
     }
 
     fn handle_response(
@@ -214,7 +211,7 @@ where
         smr_context: &mut Context,
         response: Self::Response,
         clock: NodeTime,
-    ) -> AsyncResult<()> {
+    ) -> Async<()> {
         let num_records = response.records.len();
         // Insert all the records in order.
         // Process the commits so that new epochs are created along the way.
@@ -239,6 +236,6 @@ where
             self.process_commits(smr_context);
             self.update_tracker(clock);
         }
-        Box::new(future::ready(()))
+        Box::pin(future::ready(()))
     }
 }

@@ -3,6 +3,7 @@
 
 use crate::{base_types::*, configuration::EpochConfiguration, smr_context::*};
 use anyhow::ensure;
+use futures::future;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -71,9 +72,9 @@ impl SimulatedLedgerState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SimulatedContext<Config> {
+pub struct SimulatedContext {
     author: Author,
-    config: Config,
+    database: HashMap<String, Vec<u8>>,
     num_nodes: usize,
     max_command_per_epoch: usize,
     next_fetched_command_index: usize,
@@ -81,26 +82,17 @@ pub struct SimulatedContext<Config> {
     pending_ledger_states: HashMap<State, SimulatedLedgerState>,
 }
 
-impl<Config> SimulatedContext<Config> {
-    pub fn new(
-        author: Author,
-        config: Config,
-        num_nodes: usize,
-        max_command_per_epoch: usize,
-    ) -> Self {
+impl SimulatedContext {
+    pub fn new(author: Author, num_nodes: usize, max_command_per_epoch: usize) -> Self {
         SimulatedContext {
             author,
-            config,
+            database: HashMap::new(),
             num_nodes,
             max_command_per_epoch,
             next_fetched_command_index: 0,
             last_committed_ledger_state: SimulatedLedgerState::new(),
             pending_ledger_states: HashMap::new(),
         }
-    }
-
-    pub fn last_committed_state(&self) -> State {
-        self.last_committed_ledger_state.key()
     }
 
     pub fn committed_history(&self) -> &Vec<(Command, NodeTime)> {
@@ -116,12 +108,12 @@ impl<Config> SimulatedContext<Config> {
     }
 }
 
-impl<Config> SmrTypes for SimulatedContext<Config> {
+impl SmrTypes for SimulatedContext {
     type State = State;
     type Command = Command;
 }
 
-impl<Config> CommandFetcher<Command> for SimulatedContext<Config> {
+impl CommandFetcher<Command> for SimulatedContext {
     fn fetch(&mut self) -> Option<Command> {
         let command = Command {
             proposer: self.author,
@@ -132,7 +124,7 @@ impl<Config> CommandFetcher<Command> for SimulatedContext<Config> {
     }
 }
 
-impl<Config> CommandExecutor<Author, State, Command> for SimulatedContext<Config> {
+impl CommandExecutor<Author, State, Command> for SimulatedContext {
     fn compute(
         &mut self,
         base_state: &State,
@@ -165,7 +157,7 @@ impl<Config> CommandExecutor<Author, State, Command> for SimulatedContext<Config
     }
 }
 
-impl<Config> StateFinalizer<State> for SimulatedContext<Config> {
+impl StateFinalizer<State> for SimulatedContext {
     fn commit(&mut self, state: &State, certificate: Option<&dyn CommitCertificate<State>>) {
         info!("{:?} Delivering commit for state: {:?}", self.author, state);
         let ledger_state = self
@@ -198,9 +190,13 @@ impl<Config> StateFinalizer<State> for SimulatedContext<Config> {
             .remove(state)
             .expect("Discarded states should be known");
     }
+
+    fn last_committed_state(&self) -> State {
+        self.last_committed_ledger_state.key()
+    }
 }
 
-impl<Config> EpochReader<Author, State> for SimulatedContext<Config> {
+impl EpochReader<Author, State> for SimulatedContext {
     fn read_epoch_id(&self, state: &State) -> EpochId {
         let num_commands = self
             .get_ledger_state(state)
@@ -233,7 +229,7 @@ impl std::io::Write for SimulatedHasher {
     }
 }
 
-impl<Config> CryptographicModule for SimulatedContext<Config> {
+impl CryptographicModule for SimulatedContext {
     type Hasher = SimulatedHasher;
     type Author = Author;
     type Signature = Signature;
@@ -260,21 +256,21 @@ impl<Config> CryptographicModule for SimulatedContext<Config> {
         self.author
     }
 
-    fn sign(&mut self, hash: Self::HashValue) -> Result<Self::Signature> {
-        Ok(Signature(self.author.0, hash))
+    fn sign(&mut self, hash: Self::HashValue) -> Self::Signature {
+        Signature(self.author.0, hash)
     }
 }
 
-impl<Config> Storage<State> for SimulatedContext<Config> {
-    type Config = Config;
-
-    fn config(&self) -> &Config {
-        &self.config
+impl Storage for SimulatedContext {
+    fn read_value(&mut self, key: String) -> AsyncResult<Option<Vec<u8>>> {
+        let value = self.database.get(&key).cloned();
+        Box::pin(future::ready(Ok(value)))
     }
 
-    fn state(&self) -> State {
-        self.last_committed_state()
+    fn store_value(&mut self, key: String, value: Vec<u8>) -> AsyncResult<()> {
+        self.database.insert(key, value);
+        Box::pin(future::ready(Ok(())))
     }
 }
 
-impl<Config> SmrContext for SimulatedContext<Config> where Config: Eq + Clone + Debug + 'static {}
+impl SmrContext for SimulatedContext {}

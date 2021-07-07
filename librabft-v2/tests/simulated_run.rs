@@ -5,34 +5,38 @@
 
 use bft_lib::{
     base_types::*,
+    interfaces::ConsensusNode,
     simulated_context::{SimulatedContext, State},
     simulator,
+    smr_context::StateFinalizer,
 };
+use futures::executor::block_on;
 use librabft_v2::{
     data_sync::*,
     node::{NodeConfig, NodeState},
 };
 
-type Context = SimulatedContext<NodeConfig>;
-
 fn make_simulator(
     seed: u64,
     nodes: usize,
 ) -> simulator::Simulator<
-    NodeState<Context>,
-    Context,
-    DataSyncNotification<Context>,
+    NodeState<SimulatedContext>,
+    SimulatedContext,
+    DataSyncNotification<SimulatedContext>,
     DataSyncRequest,
-    DataSyncResponse<Context>,
+    DataSyncResponse<SimulatedContext>,
 > {
     let context_factory = |author, num_nodes| {
+        let mut context = SimulatedContext::new(author, num_nodes, 30000);
         let config = NodeConfig {
             target_commit_interval: Duration(100000),
             delta: Duration(20),
-            gamma_times_100: 200,
-            lambda_times_100: 50,
+            gamma: 2.0,
+            lambda: 0.5,
         };
-        SimulatedContext::new(author, config, num_nodes, 30000)
+        let mut node = NodeState::make_initial_state(&context, config, NodeTime(0));
+        block_on(node.save_node(&mut context)).unwrap();
+        context
     };
     let delay_distribution = simulator::RandomDelay::new(10.0, 4.0);
     simulator::Simulator::new(seed, nodes, delay_distribution, context_factory)

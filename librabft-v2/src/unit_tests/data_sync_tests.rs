@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::node::NodeConfig;
 use bft_lib::simulated_context::SimulatedContext;
 use std::collections::BTreeSet;
 
 #[test]
 fn test_serde_notification() {
-    let data = DataSyncNotification::<SimulatedContext<NodeConfig>> {
+    let data = DataSyncNotification::<SimulatedContext> {
         current_epoch: EpochId(0),
         highest_commit_certificate: None,
         highest_quorum_certificate: None,
@@ -17,8 +16,7 @@ fn test_serde_notification() {
         proposed_block: None,
     };
     let message = serde_json::to_string(&data).unwrap();
-    let data2: DataSyncNotification<SimulatedContext<NodeConfig>> =
-        serde_json::from_str(&message).unwrap();
+    let data2: DataSyncNotification<SimulatedContext> = serde_json::from_str(&message).unwrap();
     assert_eq!(data2, data);
 }
 
@@ -35,12 +33,11 @@ fn test_serde_request() {
 
 #[test]
 fn test_serde_response() {
-    let data = DataSyncResponse::<SimulatedContext<NodeConfig>> {
+    let data = DataSyncResponse::<SimulatedContext> {
         current_epoch: EpochId(0),
         records: Vec::new(),
     };
     let message = serde_json::to_string(&data).unwrap();
-    let data2: DataSyncResponse<SimulatedContext<NodeConfig>> =
-        serde_json::from_str(&message).unwrap();
+    let data2: DataSyncResponse<SimulatedContext> = serde_json::from_str(&message).unwrap();
     assert_eq!(data2, data);
 }

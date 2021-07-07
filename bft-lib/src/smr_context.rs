@@ -8,10 +8,10 @@ use std::{fmt::Debug, hash::Hash};
 // -- BEGIN FILE smr_apis --
 pub trait SmrTypes {
     /// An execution state.
-    type State: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static + Send;
+    type State: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + Send + 'static;
 
     /// A sequence of transactions.
-    type Command: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + 'static + Send;
+    type Command: Eq + Clone + Debug + Hash + Serialize + DeserializeOwned + Send + 'static;
 }
 
 pub trait CommandFetcher<Command> {
@@ -57,6 +57,9 @@ pub trait StateFinalizer<State> {
 
     /// Report that a state was discarded.
     fn discard(&mut self, state: &State);
+
+    /// Obtain the last committed state, if any, and otherwise the genesis state.
+    fn last_committed_state(&self) -> State;
 }
 
 /// How to read epoch ids and configuration from a state.
@@ -97,13 +100,13 @@ pub trait CryptographicModule {
     type Hasher: std::io::Write;
 
     /// The identity (ie. public key) of a node.
-    type Author: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static + Send;
+    type Author: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + Send + 'static;
 
     /// The type of signature values.
-    type Signature: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static + Send;
+    type Signature: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + Send + 'static;
 
     /// The type of hash values.
-    type HashValue: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + 'static + Send;
+    type HashValue: Serialize + DeserializeOwned + Debug + Copy + Eq + Hash + Send + 'static;
 
     /// Hash the given message, including a type-based seed.
     fn hash(&self, message: &dyn Signable<Self::Hasher>) -> Self::HashValue;
@@ -119,19 +122,14 @@ pub trait CryptographicModule {
     fn author(&self) -> Self::Author;
 
     /// Sign a message using the private key of this node.
+    // TODO: make async to enable HSM implementations.
     fn sign(&mut self, hash: Self::HashValue) -> Self::Signature;
 }
 
-// TODO: currently, "Storage" only provides (synchronous) read-only access to initial node configuration.
-// Eventually, this should let node (asynchronously) query and modify an actual (key-value?) database.
-pub trait Storage<State> {
-    // Protocol-specific configuration for each consensus node. Implementations of
-    // SmrContext should be parametric w.r.t this type.
-    type Config;
+pub trait Storage {
+    fn read_value(&mut self, key: String) -> AsyncResult<Option<Vec<u8>>>;
 
-    fn config(&self) -> &Self::Config;
-
-    fn state(&self) -> State;
+    fn store_value(&mut self, key: String, value: Vec<u8>) -> AsyncResult<()>;
 }
 
 pub trait SmrContext:
@@ -144,10 +142,11 @@ pub trait SmrContext:
     > + CommandFetcher<<Self as SmrTypes>::Command>
     + StateFinalizer<<Self as SmrTypes>::State>
     + EpochReader<<Self as CryptographicModule>::Author, <Self as SmrTypes>::State>
-    + Storage<<Self as SmrTypes>::State>
+    + Storage
     + Eq
     + Clone
     + Debug
+    + Send
     + 'static
 {
 }

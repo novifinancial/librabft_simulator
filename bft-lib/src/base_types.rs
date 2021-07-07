@@ -1,7 +1,6 @@
 // Copyright (c) Calibra Research
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -9,12 +8,12 @@ use std::fmt;
 #[path = "unit_tests/base_type_tests.rs"]
 mod base_type_tests;
 
-// TODO: add error handling (using thiserror to define an error type?) + remove Unpin
-// Alternatively, we may want to use a generic associated type when there are available on
-// rust-stable:   https://github.com/rust-lang/rust/issues/44265
-pub type AsyncResult<T> = Box<dyn std::future::Future<Output = T> + Unpin + 'static + Send>;
+// TODO: better error type
+pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Async<'a, T> = futures::future::BoxFuture<'a, T>;
+
+pub type AsyncResult<'a, T> = futures::future::BoxFuture<'a, Result<T>>;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, Debug)]
 pub struct Round(pub usize);

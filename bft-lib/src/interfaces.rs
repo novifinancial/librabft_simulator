@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    base_types::{AsyncResult, NodeTime},
+    base_types::{Async, AsyncResult, NodeTime},
     smr_context::SmrContext,
 };
 
@@ -45,7 +45,7 @@ pub trait ConsensusNode<Context: SmrContext>: Sized {
 
     /// Save the "staged" node state into storage, possibly after applying additional async
     /// operations.
-    fn save_node(&mut self, context: &mut Context) -> AsyncResult<()>;
+    fn save_node<'a>(&'a mut self, context: &'a mut Context) -> AsyncResult<'a, ()>;
 }
 // -- END FILE --
 
@@ -57,31 +57,31 @@ pub trait DataSyncNode<Context> {
     type Response;
 
     /// Sender role: what to send to initiate a data-synchronization exchange with a receiver.
-    fn create_notification(&self) -> Self::Notification;
+    fn create_notification(&self, context: &Context) -> Self::Notification;
 
     /// Query role: what to send to initiate a query exchange and obtain data from a sender.
-    fn create_request(&self) -> Self::Request;
+    fn create_request(&self, context: &Context) -> Self::Request;
 
     /// Sender role: handle a request from a receiver.
-    fn handle_request(
-        &self,
-        context: &mut Context,
+    fn handle_request<'a>(
+        &'a self,
+        context: &'a mut Context,
         request: Self::Request,
-    ) -> AsyncResult<Self::Response>;
+    ) -> Async<'a, Self::Response>;
 
     /// Receiver role: accept or refuse a notification.
-    fn handle_notification(
-        &mut self,
-        context: &mut Context,
+    fn handle_notification<'a>(
+        &'a mut self,
+        context: &'a mut Context,
         notification: Self::Notification,
-    ) -> AsyncResult<Option<Self::Request>>;
+    ) -> Async<'a, Option<Self::Request>>;
 
     /// Receiver role: receive data.
-    fn handle_response(
-        &mut self,
-        context: &mut Context,
+    fn handle_response<'a>(
+        &'a mut self,
+        context: &'a mut Context,
         response: Self::Response,
         clock: NodeTime,
-    ) -> AsyncResult<()>;
+    ) -> Async<'a, ()>;
 }
 // -- END FILE --
