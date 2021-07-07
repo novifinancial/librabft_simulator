@@ -75,7 +75,7 @@ impl Mempool {
         // The `Processor` hashes and stores the batch. It then forwards the batch's digest to the `PrimaryConnector`
         // that will send it to our primary machine.
         Processor::spawn(
-            store.clone(),
+            store,
             /* rx_batch */ rx_processor,
             /* tx_digest */ tx_consensus,
         );

@@ -124,7 +124,7 @@ async fn signature_service() {
     // Request signature from the service.
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest();
-    let signature = service.request_signature(digest.clone()).await;
+    let signature = service.request_signature(digest).await;
 
     // Verify the signature we received.
     assert!(signature.verify(&digest, &public_key).is_ok());

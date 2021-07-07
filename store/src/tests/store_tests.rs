@@ -61,10 +61,8 @@ async fn read_notify() {
     let key_copy = key.clone();
     let value_copy = value.clone();
     let handle = tokio::spawn(async move {
-        match store_copy.notify_read(key_copy).await {
-            Ok(v) => assert_eq!(v, value_copy),
-            _ => assert!(false),
-        }
+        let value = store_copy.notify_read(key_copy).await.unwrap();
+        assert_eq!(value, value_copy);
     });
 
     // Write the missing value and ensure the handle terminates correctly.
