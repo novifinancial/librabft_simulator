@@ -6,7 +6,6 @@ use crypto::{Digest, PublicKey, Signature, SignatureService};
 use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
 use futures::executor::block_on;
-use futures::future;
 use mempool::Payload;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -107,18 +106,13 @@ impl CommandExecutor<Author, State, Command> for Context {
     fn compute(
         &mut self,
         _base_state: &State,
-        command: Command,
+        _command: Command,
         _time: NodeTime,
         _previous_author: Option<Author>,
         _previous_voters: Vec<Author>,
     ) -> Option<State> {
         // NOTE: This is called before voting (it is a good time to verify the commands).
-        let digest = Digest(
-            Sha512::digest(&command).as_slice()[..32]
-                .try_into()
-                .unwrap(),
-        );
-        block_on(self.store.write(digest.to_vec(), command));
+        // Nothing to do here.
         Some(State::default())
     }
 }
@@ -187,13 +181,18 @@ impl CryptographicModule for Context {
 // TODO: Remove 'block_on'. How to make the error type match (rocksdb error -> anyhow) ?
 impl Storage for Context {
     fn read_value(&mut self, key: String) -> AsyncResult<Option<Vec<u8>>> {
-        let value =
-            block_on(self.store.read(key.into_bytes())).map_err(|e| anyhow::anyhow!("{}", e));
-        Box::pin(future::ready(value))
+        Box::pin(async move {
+            self.store
+                .read(key.into_bytes())
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))
+        })
     }
 
     fn store_value(&mut self, key: String, value: Vec<u8>) -> AsyncResult<()> {
-        block_on(self.store.write(key.into_bytes(), value));
-        Box::pin(future::ready(Ok(())))
+        Box::pin(async move {
+            self.store.write(key.into_bytes(), value).await;
+            Ok(())
+        })
     }
 }
