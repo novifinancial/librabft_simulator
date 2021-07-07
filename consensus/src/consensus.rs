@@ -30,7 +30,7 @@ impl Consensus {
         tx_consensus: Sender<ConsensusMessage>,
         rx_consensus: Receiver<ConsensusMessage>,
         rx_mempool: Receiver<Payload>,
-        //tx_commit: Sender<CommitCertificate<State>>,
+        //tx_commit: Sender<dyn CommitCertificate<State>>, //  doesn't have a size known at compile-time
     ) where
         Node: ConsensusNode<Context>
             + Send

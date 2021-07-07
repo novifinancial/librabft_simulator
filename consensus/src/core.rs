@@ -76,6 +76,7 @@ where
         rx_consensus: Receiver<ConsensusMessage>,
         rx_mempool: Receiver<Payload>,
         tx_network: Sender<NetMessage>,
+        //tx_commit: Sender<CommitCertificate>,
     ) {
         let mut context = Context::new(
             name,
@@ -84,7 +85,8 @@ where
             signature_service,
             parameters.max_payload_size,
         );
-        let node = block_on(Node::load_node(&mut context, Self::local_time()));
+        let node = block_on(Node::load_node(&mut context, Self::local_time()))
+            .expect("Failed to load node");
         let timer = Timer::new(parameters.timeout_delay);
 
         tokio::spawn(async move {
@@ -94,6 +96,7 @@ where
                 rx_consensus,
                 rx_mempool,
                 tx_network,
+                //tx_commit,
                 context,
                 node,
                 timer,
@@ -137,9 +140,12 @@ where
         &mut self,
         actions: NodeUpdateActions<Context>,
     ) -> ConsensusResult<()> {
-        self.node.save_node(&mut self.context).await;
+        self.node
+            .save_node(&mut self.context)
+            .await
+            .expect("Failed to save node state");
 
-        let notification = self.node.create_notification();
+        let notification = self.node.create_notification(&self.context);
         let message = ConsensusMessage::DataSyncNotification {
             sender: self.name,
             notification,
@@ -154,7 +160,7 @@ where
         }
 
         // Schedule sending requests.
-        let request = self.node.create_request();
+        let request = self.node.create_request(&self.context);
         let message = ConsensusMessage::DataSyncRequest {
             sender: self.name,
             request,

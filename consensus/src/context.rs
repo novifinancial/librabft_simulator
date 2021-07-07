@@ -1,11 +1,12 @@
 use crate::config::Committee;
-use bft_lib::base_types::{EpochId, NodeTime, Result};
+use bft_lib::base_types::{AsyncResult, EpochId, NodeTime, Result};
 use bft_lib::configuration::EpochConfiguration;
 use bft_lib::smr_context::*;
 use crypto::{Digest, PublicKey, Signature, SignatureService};
 use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
 use futures::executor::block_on;
+use futures::future;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto as _;
 use store::Store;
@@ -13,7 +14,7 @@ use store::Store;
 pub struct Context {
     name: PublicKey,
     committee: Committee,
-    _store: Store,
+    store: Store,
     signature_service: SignatureService,
     _max_payload_size: usize,
     pub buffer: Vec<Vec<u8>>,
@@ -30,7 +31,7 @@ impl Context {
         Self {
             name,
             committee,
-            _store: store,
+            store,
             signature_service,
             _max_payload_size: max_payload_size,
             buffer: Vec::new(),
@@ -55,13 +56,13 @@ impl std::cmp::PartialEq for Context {
     }
 }
 impl Eq for Context {}
-impl std::fmt::Debug for Context {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl std::clone::Clone for Context {
+    fn clone(&self) -> Self {
         panic!("not implemented");
     }
 }
-impl std::clone::Clone for Context {
-    fn clone(&self) -> Self {
+impl std::fmt::Debug for Context {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         panic!("not implemented");
     }
 }
@@ -123,6 +124,10 @@ impl StateFinalizer<State> for Context {
     }
 
     fn discard(&mut self, _state: &State) {}
+
+    fn last_committed_state(&self) -> State {
+        State::default()
+    }
 }
 
 // TODO: Implement epoch transition. Right now, we alway run within a single epoch.
@@ -173,15 +178,16 @@ impl CryptographicModule for Context {
     }
 }
 
-// TODO: Persist.
-impl Storage<State> for Context {
-    type Config = u64;
-
-    fn config(&self) -> &Self::Config {
-        &0
+// TODO: How to make the error type match (rocksdb error -> anyhow) ?
+impl Storage for Context {
+    fn read_value(&mut self, key: String) -> AsyncResult<Option<Vec<u8>>> {
+        let value =
+            block_on(self.store.read(key.into_bytes())).map_err(|e| anyhow::anyhow!("{}", e));
+        Box::pin(future::ready(value))
     }
 
-    fn state(&self) -> State {
-        State::default()
+    fn store_value(&mut self, key: String, value: Vec<u8>) -> AsyncResult<()> {
+        block_on(self.store.write(key.into_bytes(), value));
+        Box::pin(future::ready(Ok(())))
     }
 }
