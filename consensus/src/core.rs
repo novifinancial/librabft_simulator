@@ -8,6 +8,7 @@ use bytes::Bytes;
 use crypto::{PublicKey, SignatureService};
 use futures::executor::block_on;
 use log::{debug, warn};
+use mempool::Payload;
 use network::SimpleSender;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
@@ -30,7 +31,7 @@ pub enum ConsensusMessage<Notification, Request, Response> {
     },
 }
 
-pub struct CoreDriver<Node, Payload, Notification, Request, Response> {
+pub struct CoreDriver<Node, Notification, Request, Response> {
     name: PublicKey,
     committee: Committee,
     rx_consensus: Receiver<ConsensusMessage<Notification, Request, Response>>,
@@ -42,8 +43,7 @@ pub struct CoreDriver<Node, Payload, Notification, Request, Response> {
     network: SimpleSender,
 }
 
-impl<Node, Payload, Notification, Request, Response>
-    CoreDriver<Node, Payload, Notification, Request, Response>
+impl<Node, Notification, Request, Response> CoreDriver<Node, Notification, Request, Response>
 where
     Node: ConsensusNode<Context>
         + DataSyncNode<Context, Notification = Notification, Request = Request, Response = Response>
@@ -51,7 +51,6 @@ where
         + Sync
         + 'static,
     Context: SmrContext,
-    Payload: Send + 'static + Default + Serialize + DeserializeOwned + Debug,
     Notification: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
     Request: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
     Response: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
@@ -60,23 +59,18 @@ where
     pub fn spawn(
         name: PublicKey,
         committee: Committee,
-        parameters: Parameters,
+        _parameters: Parameters,
         signature_service: SignatureService,
         store: Store,
         rx_consensus: Receiver<ConsensusMessage<Notification, Request, Response>>,
         rx_mempool: Receiver<Payload>,
         //tx_commit: Sender<CommitCertificate>,
     ) {
-        let mut context = Context::new(
-            name,
-            committee.clone(),
-            store,
-            signature_service,
-            parameters.max_payload_size,
-        );
+        let mut context = Context::new(name, committee.clone(), store, signature_service);
         let node = block_on(Node::load_node(&mut context, Self::local_time()))
             .expect("Failed to load node");
-        let timer = Timer::new(parameters.timeout_delay);
+
+        let timer = Timer::new(100); // Bootstrap the timer.
 
         tokio::spawn(async move {
             Self {
@@ -164,9 +158,6 @@ where
 
     /// Main reactor loop.
     pub async fn run(&mut self) {
-        // Bootstrap.
-        self.timer.reset(100);
-
         // Process incoming messages and events.
         loop {
             tokio::select! {
@@ -195,8 +186,7 @@ where
                     }
                 },
                 Some(payload) = self.rx_mempool.recv() => {
-                    let bytes = bincode::serialize(&payload).expect("Failed to serialize payload");
-                    self.context.buffer.push(bytes);
+                    self.context.buffer.push_back(payload);
                 },
                 () = &mut self.timer => {
                     let clock = Self::local_time();

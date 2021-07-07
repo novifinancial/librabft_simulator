@@ -7,7 +7,9 @@ use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
 use futures::executor::block_on;
 use futures::future;
+use mempool::Payload;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::convert::TryInto as _;
 use store::Store;
 
@@ -16,8 +18,7 @@ pub struct Context {
     committee: Committee,
     store: Store,
     signature_service: SignatureService,
-    _max_payload_size: usize,
-    pub buffer: Vec<Vec<u8>>,
+    pub buffer: VecDeque<Command>,
 }
 
 impl Context {
@@ -26,15 +27,13 @@ impl Context {
         committee: Committee,
         store: Store,
         signature_service: SignatureService,
-        max_payload_size: usize,
     ) -> Self {
         Self {
             name,
             committee,
             store,
             signature_service,
-            _max_payload_size: max_payload_size,
-            buffer: Vec::new(),
+            buffer: VecDeque::new(),
         }
     }
 }
@@ -89,7 +88,7 @@ impl SmrContext for Context {}
 pub type Author = PublicKey;
 
 pub type State = u64;
-pub type Command = Vec<Vec<u8>>;
+pub type Command = Payload;
 
 impl SmrTypes for Context {
     type State = State;
@@ -99,21 +98,28 @@ impl SmrTypes for Context {
 impl CommandFetcher<Command> for Context {
     fn fetch(&mut self) -> Option<Command> {
         // Note: If we return None, LibraBFT-v2 will not propose the block.
-        Some(self.buffer.drain(..).collect())
+        Some(self.buffer.pop_front().unwrap_or_default())
     }
 }
 
+// TODO: Remove 'block_on'.
 impl CommandExecutor<Author, State, Command> for Context {
     fn compute(
         &mut self,
         _base_state: &State,
-        _command: Command,
+        command: Command,
         _time: NodeTime,
         _previous_author: Option<Author>,
         _previous_voters: Vec<Author>,
     ) -> Option<State> {
-        // TODO: Called before vote: This is where we verify the commands.
-        None
+        // NOTE: This is called before voting (it is a good time to verify the commands).
+        let digest = Digest(
+            Sha512::digest(&command).as_slice()[..32]
+                .try_into()
+                .unwrap(),
+        );
+        block_on(self.store.write(digest.to_vec(), command));
+        Some(State::default())
     }
 }
 
@@ -178,7 +184,7 @@ impl CryptographicModule for Context {
     }
 }
 
-// TODO: How to make the error type match (rocksdb error -> anyhow) ?
+// TODO: Remove 'block_on'. How to make the error type match (rocksdb error -> anyhow) ?
 impl Storage for Context {
     fn read_value(&mut self, key: String) -> AsyncResult<Option<Vec<u8>>> {
         let value =

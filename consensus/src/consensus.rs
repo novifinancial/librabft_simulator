@@ -7,6 +7,7 @@ use bft_lib::smr_context::SmrContext;
 use bytes::Bytes;
 use crypto::{PublicKey, SecretKey, SignatureService};
 use log::info;
+use mempool::Payload;
 use network::{MessageHandler, Receiver as NetworkReceiver, Writer};
 use serde::{de::DeserializeOwned, Serialize};
 use std::error::Error;
@@ -20,7 +21,7 @@ pub const CHANNEL_CAPACITY: usize = 1_000;
 pub struct Consensus;
 
 impl Consensus {
-    pub fn spawn<Node, Payload, Notification, Request, Response>(
+    pub fn spawn<Node, Notification, Request, Response>(
         name: PublicKey,
         secret: SecretKey,
         committee: Committee,
@@ -64,7 +65,7 @@ impl Consensus {
         let signature_service = SignatureService::new(secret);
 
         // Spawn the core driver.
-        CoreDriver::<Node, Payload, Notification, Request, Response>::spawn(
+        CoreDriver::<Node, Notification, Request, Response>::spawn(
             name,
             committee,
             parameters,

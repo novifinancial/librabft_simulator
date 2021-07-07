@@ -6,7 +6,7 @@ use librabft_v2::{
     node::NodeState,
 };
 use log::info;
-use mempool::{Mempool, Payload};
+use mempool::Mempool;
 use store::{Store, StoreError};
 use thiserror::Error;
 use tokio::sync::mpsc::{channel, Receiver};
@@ -67,7 +67,6 @@ impl LibraBftV2Node {
         // Spawn the consensus.
         Consensus::spawn::<
             NodeState<Context>,
-            Payload,
             DataSyncNotification<Context>,
             DataSyncRequest,
             DataSyncResponse<Context>,
