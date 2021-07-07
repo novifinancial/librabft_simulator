@@ -79,11 +79,11 @@ impl Committee {
             .ok_or_else(|| ConsensusError::NotInCommittee(*name))
     }
 
-    pub fn broadcast_addresses(&self, myself: &PublicKey) -> Vec<SocketAddr> {
+    pub fn broadcast_addresses(&self, myself: &PublicKey) -> Vec<(PublicKey, SocketAddr)> {
         self.authorities
             .values()
             .filter(|x| x.name != *myself)
-            .map(|x| x.address)
+            .map(|x| (x.name, x.address))
             .collect()
     }
 }

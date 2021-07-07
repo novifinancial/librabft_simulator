@@ -1,116 +1,108 @@
-use crate::config::{Committee, Parameters};
-use crate::core::Core;
-use crate::error::MempoolResult;
-use crate::front::Front;
-use crate::payload::PayloadMaker;
-use crate::synchronizer::Synchronizer;
-use consensus::{ConsensusMempoolMessage, ConsensusMessage};
-use crypto::{PublicKey, SignatureService};
-use log::info;
-use network::{NetReceiver, NetSender};
-use store::Store;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-
-//#[cfg(test)]
-//#[path = "tests/mempool_tests.rs"]
-//pub mod mempool_tests;
-
 pub struct Mempool;
+use crate::batch_maker::BatchMaker;
+use crate::batch_maker::Transaction;
+use crate::processor::Processor;
+use crate::quorum_waiter::QuorumWaiter;
+use crate::{Committee, Parameters};
+use async_trait::async_trait;
+use bytes::Bytes;
+use crypto::PublicKey;
+use log::info;
+use network::{MessageHandler, Receiver, Writer};
+use std::error::Error;
+use store::Store;
+use tokio::sync::mpsc::{channel, Sender};
+
+/// The default channel capacity for each channel of the worker.
+pub const CHANNEL_CAPACITY: usize = 1_000;
+
+/// Indicates a serialized `WorkerMessage::Batch` message.
+pub type SerializedBatch = Vec<u8>;
 
 impl Mempool {
-    pub fn run(
+    pub fn spawn(
+        // The public key of this authority.
         name: PublicKey,
+        // The committee information.
         committee: Committee,
+        // The configuration parameters.
         parameters: Parameters,
+        // The persistent storage.
         store: Store,
-        signature_service: SignatureService,
-        consensus_channel: Sender<ConsensusMessage>,
-        consensus_mempool_channel: Receiver<ConsensusMempoolMessage>,
-    ) -> MempoolResult<()> {
-        // NOTE: The following log entries are used to compute performance.
-        info!(
-            "Mempool queue capacity set to {} payloads",
-            parameters.queue_capacity
-        );
-        info!(
-            "Mempool synchronizer retry delay set to {} ms",
-            parameters.sync_retry_delay
-        );
-        info!(
-            "Mempool max payload size set to {} B",
-            parameters.max_payload_size
-        );
-        info!(
-            "Mempool min block delay set to {} ms",
-            parameters.min_block_delay
+        // Output serialize batches to the consensus.
+        tx_consensus: Sender<SerializedBatch>,
+    ) {
+        let (tx_batch_maker, rx_batch_maker) = channel(CHANNEL_CAPACITY);
+        let (tx_quorum_waiter, rx_quorum_waiter) = channel(CHANNEL_CAPACITY);
+        let (tx_processor, rx_processor) = channel(CHANNEL_CAPACITY);
+
+        // We first receive clients' transactions from the network.
+        let mut address = committee
+            .address(&name)
+            .expect("Our public key is not in the committee");
+        address.set_ip("0.0.0.0".parse().unwrap());
+        Receiver::spawn(
+            address,
+            /* handler */ TxReceiverHandler { tx_batch_maker },
         );
 
-        let (tx_network, rx_network) = channel(1000);
-        let (tx_core, rx_core) = channel(1000);
-        let (tx_client, rx_client) = channel(1000);
+        // The transactions are sent to the `BatchMaker` that assembles them into batches. It then broadcasts
+        // (in a reliable manner) the batches to all other nodes. Finally, it gathers the 'cancel handlers'
+        // of the messages and send them to the `QuorumWaiter`.
+        BatchMaker::spawn(
+            parameters.batch_size,
+            parameters.max_batch_delay,
+            /* rx_transaction */ rx_batch_maker,
+            /* tx_message */ tx_quorum_waiter,
+            /* workers_addresses */
+            committee
+                .broadcast_addresses(&name)
+                .iter()
+                .map(|(name, addresses)| (*name, *addresses))
+                .collect(),
+        );
 
-        // Run the front end that receives client transactions.
-        let address = committee.front_address(&name).map(|mut x| {
-            x.set_ip("0.0.0.0".parse().unwrap());
-            x
-        })?;
-
-        let front = Front::new(address, tx_client);
-        tokio::spawn(async move {
-            front.run().await;
-        });
-
-        // Run the mempool network sender and receiver.
-        let address = committee.mempool_address(&name).map(|mut x| {
-            x.set_ip("0.0.0.0".parse().unwrap());
-            x
-        })?;
-        let network_receiver = NetReceiver::new(address, tx_core.clone());
-        tokio::spawn(async move {
-            network_receiver.run().await;
-        });
-
-        let mut network_sender = NetSender::new(rx_network);
-        tokio::spawn(async move {
-            network_sender.run().await;
-        });
-
-        // Build and run the synchronizer.
-        let synchronizer = Synchronizer::new(
-            consensus_channel,
-            store.clone(),
-            name,
+        // The `QuorumWaiter` waits for 2f authorities to acknowledge reception of the batch. It then forwards
+        // the batch to the `Processor`.
+        QuorumWaiter::spawn(
             committee.clone(),
-            tx_network.clone(),
-            parameters.sync_retry_delay,
+            /* stake */ committee.stake(&name),
+            /* rx_message */ rx_quorum_waiter,
+            /* tx_batch */ tx_processor,
         );
 
-        // Build and run the payload maker.
-        let payload_maker = PayloadMaker::new(
-            name,
-            signature_service,
-            parameters.max_payload_size,
-            parameters.min_block_delay,
-            rx_client,
-            tx_core,
+        // The `Processor` hashes and stores the batch. It then forwards the batch's digest to the `PrimaryConnector`
+        // that will send it to our primary machine.
+        Processor::spawn(
+            store.clone(),
+            /* rx_batch */ rx_processor,
+            /* tx_digest */ tx_consensus,
         );
 
-        // Run the core.
-        let mut core = Core::new(
-            name,
-            committee,
-            parameters,
-            store,
-            synchronizer,
-            payload_maker,
-            /* core_channel */ rx_core,
-            consensus_mempool_channel,
-            /* network_channel */ tx_network,
+        info!(
+            "Mempool {} listening to client transactions on {}",
+            name, address
         );
-        tokio::spawn(async move {
-            core.run().await;
-        });
+    }
+}
 
+/// Defines how the network receiver handles incoming transactions.
+#[derive(Clone)]
+struct TxReceiverHandler {
+    tx_batch_maker: Sender<Transaction>,
+}
+
+#[async_trait]
+impl MessageHandler for TxReceiverHandler {
+    async fn dispatch(&self, _writer: &mut Writer, message: Bytes) -> Result<(), Box<dyn Error>> {
+        // Send the transaction to the batch maker.
+        self.tx_batch_maker
+            .send(message.to_vec())
+            .await
+            .expect("Failed to send transaction");
+
+        // Give the change to schedule other tasks.
+        tokio::task::yield_now().await;
         Ok(())
     }
 }

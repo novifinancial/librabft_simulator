@@ -120,7 +120,12 @@ where
             self.network.send(address, Bytes::from(bytes)).await;
         } else {
             debug!("Broadcasting {:?}", message);
-            let addresses = self.committee.broadcast_addresses(&self.name);
+            let addresses = self
+                .committee
+                .broadcast_addresses(&self.name)
+                .iter()
+                .map(|(_, x)| *x)
+                .collect();
             self.network.broadcast(addresses, Bytes::from(bytes)).await;
         }
         Ok(())

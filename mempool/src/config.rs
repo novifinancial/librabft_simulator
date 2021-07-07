@@ -1,53 +1,49 @@
-use crate::error::{MempoolError, MempoolResult};
 use crypto::PublicKey;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
+pub type Stake = u32;
+pub type EpochNumber = u128;
+
 #[derive(Serialize, Deserialize)]
 pub struct Parameters {
-    pub queue_capacity: usize,
-    pub sync_retry_delay: u64,
-    pub max_payload_size: usize,
-    pub min_block_delay: u64,
+    pub batch_size: usize,
+    pub max_batch_delay: u64,
 }
 
 impl Default for Parameters {
     fn default() -> Self {
         Self {
-            queue_capacity: 10_000,
-            sync_retry_delay: 10_000,
-            max_payload_size: 100_000,
-            min_block_delay: 100,
+            batch_size: 500_000,
+            max_batch_delay: 200,
         }
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Authority {
     pub name: PublicKey,
-    pub front_address: SocketAddr,
-    pub mempool_address: SocketAddr,
+    pub stake: Stake,
+    pub address: SocketAddr,
 }
 
-pub type EpochNumber = u128;
-
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Committee {
     pub authorities: HashMap<PublicKey, Authority>,
     pub epoch: EpochNumber,
 }
 
 impl Committee {
-    pub fn new(info: Vec<(PublicKey, SocketAddr, SocketAddr)>, epoch: EpochNumber) -> Self {
+    pub fn new(info: Vec<(PublicKey, Stake, SocketAddr)>, epoch: EpochNumber) -> Self {
         Self {
             authorities: info
                 .into_iter()
-                .map(|(name, front_address, mempool_address)| {
+                .map(|(name, stake, address)| {
                     let authority = Authority {
                         name,
-                        front_address,
-                        mempool_address,
+                        stake,
+                        address,
                     };
                     (name, authority)
                 })
@@ -56,29 +52,26 @@ impl Committee {
         }
     }
 
-    pub fn exists(&self, name: &PublicKey) -> bool {
-        self.authorities.contains_key(name)
+    pub fn stake(&self, name: &PublicKey) -> Stake {
+        self.authorities.get(&name).map_or_else(|| 0, |x| x.stake)
     }
 
-    pub fn front_address(&self, name: &PublicKey) -> MempoolResult<SocketAddr> {
-        self.authorities
-            .get(name)
-            .map(|x| x.front_address)
-            .ok_or_else(|| MempoolError::NotInCommittee(*name))
+    pub fn quorum_threshold(&self) -> Stake {
+        // If N = 3f + 1 + k (0 <= k < 3)
+        // then (2 N + 3) / 3 = 2f + 1 + (2k + 2)/3 = 2f + 1 + k = N - f
+        let total_votes: Stake = self.authorities.values().map(|x| x.stake).sum();
+        2 * total_votes / 3 + 1
     }
 
-    pub fn mempool_address(&self, name: &PublicKey) -> MempoolResult<SocketAddr> {
-        self.authorities
-            .get(name)
-            .map(|x| x.mempool_address)
-            .ok_or_else(|| MempoolError::NotInCommittee(*name))
+    pub fn address(&self, name: &PublicKey) -> Option<SocketAddr> {
+        self.authorities.get(name).map(|x| x.address)
     }
 
-    pub fn broadcast_addresses(&self, myself: &PublicKey) -> Vec<SocketAddr> {
+    pub fn broadcast_addresses(&self, myself: &PublicKey) -> Vec<(PublicKey, SocketAddr)> {
         self.authorities
             .values()
             .filter(|x| x.name != *myself)
-            .map(|x| x.mempool_address)
+            .map(|x| (x.name, x.address))
             .collect()
     }
 }
