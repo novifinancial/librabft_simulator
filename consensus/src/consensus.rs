@@ -5,27 +5,27 @@ use async_trait::async_trait;
 use bft_lib::interfaces::{ConsensusNode, DataSyncNode};
 use bft_lib::smr_context::SmrContext;
 use bytes::Bytes;
-use crypto::{PublicKey, SignatureService};
+use crypto::{PublicKey, SecretKey, SignatureService};
 use log::info;
 use network::{MessageHandler, Receiver as NetworkReceiver, Writer};
 use serde::{de::DeserializeOwned, Serialize};
 use std::error::Error;
 use std::fmt::Debug;
 use store::Store;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+
+/// The default channel capacity for each channel of the consensus.
+pub const CHANNEL_CAPACITY: usize = 1_000;
 
 pub struct Consensus;
 
 impl Consensus {
-    #[allow(clippy::too_many_arguments)]
-    pub async fn run<Node, Payload, Notification, Request, Response>(
+    pub fn spawn<Node, Payload, Notification, Request, Response>(
         name: PublicKey,
+        secret: SecretKey,
         committee: Committee,
         parameters: Parameters,
         store: Store,
-        signature_service: SignatureService,
-        tx_consensus: Sender<ConsensusMessage<Notification, Request, Response>>,
-        rx_consensus: Receiver<ConsensusMessage<Notification, Request, Response>>,
         rx_mempool: Receiver<Payload>,
         //tx_commit: Sender<dyn CommitCertificate<State>>, //  doesn't have a size known at compile-time
     ) where
@@ -45,23 +45,10 @@ impl Consensus {
         Request: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync + Clone,
         Response: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync + Clone,
     {
-        // NOTE: The following log entries are used to compute performance.
-        info!(
-            "Consensus timeout delay set to {} ms",
-            parameters.timeout_delay
-        );
-        info!(
-            "Consensus synchronizer retry delay set to {} ms",
-            parameters.sync_retry_delay
-        );
-        info!(
-            "Consensus max payload size set to {} B",
-            parameters.max_payload_size
-        );
-        info!(
-            "Consensus min block delay set to {} ms",
-            parameters.min_block_delay
-        );
+        let (tx_consensus, rx_consensus) = channel(CHANNEL_CAPACITY);
+
+        // Write the parameters to the logs.
+        parameters.log();
 
         // Make the network sender and receiver.
         let address = committee
@@ -73,8 +60,8 @@ impl Consensus {
             .expect("Our public key is not in the committee");
         NetworkReceiver::spawn(address, /* handler */ ReceiverHandler { tx_consensus });
 
-        // Make the mempool driver which will mediate our requests to the mempool.
-        //let mempool_driver = MempoolDriver::new(tx_consensus_mempool);
+        // The `SignatureService` is used to require signatures on specific digests.
+        let signature_service = SignatureService::new(secret);
 
         // Spawn the core driver.
         CoreDriver::<Node, Payload, Notification, Request, Response>::spawn(
@@ -87,6 +74,8 @@ impl Consensus {
             rx_mempool,
             //tx_commit
         );
+
+        info!("Consensus engine successfully booted");
     }
 }
 

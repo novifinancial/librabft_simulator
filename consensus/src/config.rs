@@ -1,5 +1,5 @@
-use crate::error::{ConsensusError, ConsensusResult};
 use crypto::PublicKey;
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -23,6 +23,25 @@ impl Default for Parameters {
             max_payload_size: 500,
             min_block_delay: 100,
         }
+    }
+}
+
+impl Parameters {
+    pub fn log(&self) {
+        // NOTE: The following log entries are used to compute performance.
+        info!("Consensus timeout delay set to {} ms", self.timeout_delay);
+        info!(
+            "Consensus synchronizer retry delay set to {} ms",
+            self.sync_retry_delay
+        );
+        info!(
+            "Consensus max payload size set to {} B",
+            self.max_payload_size
+        );
+        info!(
+            "Consensus min block delay set to {} ms",
+            self.min_block_delay
+        );
     }
 }
 
@@ -72,11 +91,8 @@ impl Committee {
         2 * total_votes / 3 + 1
     }
 
-    pub fn address(&self, name: &PublicKey) -> ConsensusResult<SocketAddr> {
-        self.authorities
-            .get(name)
-            .map(|x| x.address)
-            .ok_or_else(|| ConsensusError::NotInCommittee(*name))
+    pub fn address(&self, name: &PublicKey) -> Option<SocketAddr> {
+        self.authorities.get(name).map(|x| x.address)
     }
 
     pub fn broadcast_addresses(&self, myself: &PublicKey) -> Vec<(PublicKey, SocketAddr)> {

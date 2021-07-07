@@ -13,11 +13,12 @@ use std::error::Error;
 use store::Store;
 use tokio::sync::mpsc::{channel, Sender};
 
-/// The default channel capacity for each channel of the worker.
+/// The default channel capacity for each channel of the mempool.
 pub const CHANNEL_CAPACITY: usize = 1_000;
 
 /// Indicates a serialized `WorkerMessage::Batch` message.
 pub type SerializedBatch = Vec<u8>;
+pub type Payload = SerializedBatch;
 
 impl Mempool {
     pub fn spawn(

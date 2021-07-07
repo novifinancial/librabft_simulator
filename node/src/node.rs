@@ -1,12 +1,18 @@
 use crate::config::Export as _;
 use crate::config::{Committee, Parameters, Secret};
-use consensus::{Block, Consensus, ConsensusError};
-use crypto::SignatureService;
+use consensus::{Consensus, Context};
+use librabft_v2::{
+    data_sync::{DataSyncNotification, DataSyncRequest, DataSyncResponse},
+    node::NodeState,
+};
 use log::info;
-use mempool::{Mempool, MempoolError};
+use mempool::{Mempool, Payload};
 use store::{Store, StoreError};
 use thiserror::Error;
 use tokio::sync::mpsc::{channel, Receiver};
+
+/// The default channel capacity for each channel of the node.
+pub const CHANNEL_CAPACITY: usize = 1_000;
 
 #[derive(Error, Debug)]
 pub enum NodeError {
@@ -18,28 +24,21 @@ pub enum NodeError {
 
     #[error("Store error: {0}")]
     StoreError(#[from] StoreError),
-
-    #[error(transparent)]
-    ConsensusError(#[from] ConsensusError),
-
-    #[error(transparent)]
-    MempoolError(#[from] MempoolError),
 }
 
-pub struct Node {
-    pub commit: Receiver<Block>,
+pub struct LibraBftV2Node {
+    pub commit: Receiver<()>, // TODO: Should be a commit certificate.
 }
 
-impl Node {
+impl LibraBftV2Node {
     pub async fn new(
         committee_file: &str,
         key_file: &str,
         store_path: &str,
         parameters: Option<&str>,
     ) -> Result<Self, NodeError> {
-        let (tx_commit, rx_commit) = channel(1000);
-        let (tx_consensus, rx_consensus) = channel(1000);
-        let (tx_consensus_mempool, rx_consensus_mempool) = channel(1000);
+        let (tx_payload, rx_payload) = channel(CHANNEL_CAPACITY);
+        let (_tx_commit, rx_commit) = channel(CHANNEL_CAPACITY);
 
         // Read the committee and secret key from file.
         let committee = Committee::read(committee_file)?;
@@ -56,35 +55,40 @@ impl Node {
         // Make the data store.
         let store = Store::new(store_path)?;
 
-        // Run the signature service.
-        let signature_service = SignatureService::new(secret_key);
-
-        // Make a new mempool.
-        Mempool::run(
+        // Spawn the mempool.
+        Mempool::spawn(
             name,
             committee.mempool,
             parameters.mempool,
             store.clone(),
-            signature_service.clone(),
-            tx_consensus.clone(),
-            rx_consensus_mempool,
-        )?;
+            /* tx_consensus */ tx_payload,
+        );
 
-        // Run the consensus core.
-        Consensus::run(
+        // Spawn the consensus.
+        Consensus::spawn::<
+            NodeState<Context>,
+            Payload,
+            DataSyncNotification<Context>,
+            DataSyncRequest,
+            DataSyncResponse<Context>,
+        >(
             name,
-            committee.consensus,
+            secret_key,
+            committee.consensus.clone(),
             parameters.consensus,
-            store.clone(),
-            signature_service,
-            tx_consensus,
-            rx_consensus,
-            tx_consensus_mempool,
-            tx_commit,
-        )
-        .await?;
+            store,
+            /* rx_mempool */ rx_payload, //tx_commit,
+        );
 
-        info!("Node {} successfully booted", name);
+        info!(
+            "Node {} successfully booted on {}",
+            name,
+            committee
+                .consensus
+                .address(&name)
+                .expect("Our public key is not in the committee")
+                .ip()
+        );
         Ok(Self { commit: rx_commit })
     }
 
@@ -93,7 +97,7 @@ impl Node {
     }
 
     pub async fn analyze_block(&mut self) {
-        while let Some(_block) = self.commit.recv().await {
+        while let Some(_certificate) = self.commit.recv().await {
             // This is where we can further process committed block.
         }
     }

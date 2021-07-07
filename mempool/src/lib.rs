@@ -10,4 +10,4 @@ mod quorum_waiter;
 mod common;
 
 pub use crate::config::{Committee, Parameters};
-pub use crate::mempool::Mempool;
+pub use crate::mempool::{Mempool, Payload};

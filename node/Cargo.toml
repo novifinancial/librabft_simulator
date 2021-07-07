@@ -24,6 +24,7 @@ crypto = { path = "../crypto" }
 store = { path = "../store" }
 consensus = { path = "../consensus" }
 mempool = { path = "../mempool" }
+librabft-v2 = { path = "../librabft-v2" }
 
 [features]
 benchmark = ["consensus/benchmark", "mempool/benchmark"]

@@ -3,7 +3,7 @@ mod node;
 
 use crate::config::Export as _;
 use crate::config::{Committee, Secret};
-use crate::node::Node;
+use crate::node::LibraBftV2Node as Node;
 use clap::{crate_name, crate_version, App, AppSettings, SubCommand};
 use consensus::Committee as ConsensusCommittee;
 use env_logger::Env;

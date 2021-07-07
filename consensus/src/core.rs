@@ -1,6 +1,5 @@
 use crate::config::{Committee, Parameters};
 use crate::context::Context;
-use crate::error::ConsensusResult;
 use crate::timer::Timer;
 use bft_lib::base_types::NodeTime;
 use bft_lib::interfaces::{ConsensusNode, DataSyncNode, NodeUpdateActions};
@@ -15,8 +14,6 @@ use std::fmt::Debug;
 use std::time::{SystemTime, UNIX_EPOCH};
 use store::Store;
 use tokio::sync::mpsc::Receiver;
-
-pub type RoundNumber = u64;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ConsensusMessage<Notification, Request, Response> {
@@ -112,12 +109,14 @@ where
         &mut self,
         message: &ConsensusMessage<Notification, Request, Response>,
         to: Option<&PublicKey>,
-    ) -> ConsensusResult<()> {
+    ) {
         let bytes = bincode::serialize(message).expect("Failed to serialize core message");
         if let Some(to) = to {
             debug!("Sending {:?} to {}", message, to);
-            let address = self.committee.address(to)?;
-            self.network.send(address, Bytes::from(bytes)).await;
+            match self.committee.address(to) {
+                Some(address) => self.network.send(address, Bytes::from(bytes)).await,
+                None => warn!("Node {} is not in the committee", to),
+            }
         } else {
             debug!("Broadcasting {:?}", message);
             let addresses = self
@@ -128,13 +127,9 @@ where
                 .collect();
             self.network.broadcast(addresses, Bytes::from(bytes)).await;
         }
-        Ok(())
     }
 
-    async fn process_node_actions(
-        &mut self,
-        actions: NodeUpdateActions<Context>,
-    ) -> ConsensusResult<()> {
+    async fn process_node_actions(&mut self, actions: NodeUpdateActions<Context>) {
         self.node
             .save_node(&mut self.context)
             .await
@@ -147,10 +142,10 @@ where
         };
 
         if actions.should_broadcast {
-            self.transmit(&message, None).await?;
+            self.transmit(&message, None).await;
         } else {
             for receiver in actions.should_send {
-                self.transmit(&message, Some(&receiver)).await?;
+                self.transmit(&message, Some(&receiver)).await;
             }
         }
 
@@ -161,11 +156,10 @@ where
             request,
         };
         if actions.should_query_all {
-            self.transmit(&message, None).await?;
+            self.transmit(&message, None).await;
         }
 
         self.timer.reset(actions.next_scheduled_update.0 as u64);
-        Ok(())
     }
 
     /// Main reactor loop.
@@ -175,7 +169,7 @@ where
 
         // Process incoming messages and events.
         loop {
-            let result = tokio::select! {
+            tokio::select! {
                 Some(message) = self.rx_consensus.recv() => {
                     match message {
                         ConsensusMessage::DataSyncNotification{sender, notification} => {
@@ -183,9 +177,7 @@ where
                             let actions = self.node.update_node(&mut self.context, Self::local_time());
                             if let Some(request) = request {
                                 let message = ConsensusMessage::DataSyncRequest{sender: self.name, request};
-                                if let Err(e) = self.transmit(&message, Some(&sender)).await{
-                                    warn!("{}", e);
-                                }
+                                self.transmit(&message, Some(&sender)).await;
                             }
                             self.process_node_actions(actions).await
                         },
@@ -205,16 +197,12 @@ where
                 Some(payload) = self.rx_mempool.recv() => {
                     let bytes = bincode::serialize(&payload).expect("Failed to serialize payload");
                     self.context.buffer.push(bytes);
-                    Ok(())
                 },
                 () = &mut self.timer => {
                     let clock = Self::local_time();
                     let actions = self.node.update_node(&mut self.context, clock);
                     self.process_node_actions(actions).await
                 }
-            };
-            if let Err(e) = result {
-                warn!("{}", e);
             }
         }
     }
