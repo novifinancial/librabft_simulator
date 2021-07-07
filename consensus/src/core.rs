@@ -8,7 +8,6 @@ use bft_lib::smr_context::SmrContext;
 use bytes::Bytes;
 use crypto::{PublicKey, SignatureService};
 use futures::executor::block_on;
-use librabft_v2::data_sync::{DataSyncNotification, DataSyncRequest, DataSyncResponse};
 use log::{debug, warn};
 use network::NetMessage;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -26,24 +25,24 @@ pub type RoundNumber = u64;
 
 // TODO: So currently, the (non-simulated) Context only works for LibraBFTv2 messages?
 #[derive(Serialize, Deserialize, Debug)]
-pub enum ConsensusMessage {
+pub enum ConsensusMessage<Notification, Request, Response> {
     DataSyncNotification {
         sender: PublicKey,
-        notification: DataSyncNotification<Context>,
+        notification: Notification,
     },
     DataSyncRequest {
         sender: PublicKey,
-        request: DataSyncRequest,
+        request: Request,
     },
     DataSyncResponse {
-        response: DataSyncResponse<Context>,
+        response: Response,
     },
 }
 
-pub struct CoreDriver<Node, Payload> {
+pub struct CoreDriver<Node, Payload, Notification, Request, Response> {
     name: PublicKey,
     committee: Committee,
-    rx_consensus: Receiver<ConsensusMessage>,
+    rx_consensus: Receiver<ConsensusMessage<Notification, Request, Response>>,
     rx_mempool: Receiver<Payload>,
     tx_network: Sender<NetMessage>,
     //tx_commit: Sender<CommitCertificate>,
@@ -52,19 +51,19 @@ pub struct CoreDriver<Node, Payload> {
     timer: Timer,
 }
 
-impl<Node, Payload> CoreDriver<Node, Payload>
+impl<Node, Payload, Notification, Request, Response>
+    CoreDriver<Node, Payload, Notification, Request, Response>
 where
     Node: ConsensusNode<Context>
-        + DataSyncNode<
-            Context,
-            Notification = DataSyncNotification<Context>,
-            Request = DataSyncRequest,
-            Response = DataSyncResponse<Context>,
-        > + Send
+        + DataSyncNode<Context, Notification = Notification, Request = Request, Response = Response>
+        + Send
         + Sync
         + 'static,
     Context: SmrContext,
     Payload: Send + 'static + Default + Serialize + DeserializeOwned + Debug,
+    Notification: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
+    Request: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
+    Response: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn spawn(
@@ -73,7 +72,7 @@ where
         parameters: Parameters,
         signature_service: SignatureService,
         store: Store,
-        rx_consensus: Receiver<ConsensusMessage>,
+        rx_consensus: Receiver<ConsensusMessage<Notification, Request, Response>>,
         rx_mempool: Receiver<Payload>,
         tx_network: Sender<NetMessage>,
         //tx_commit: Sender<CommitCertificate>,
@@ -118,7 +117,7 @@ where
     /// Send a message through the network.
     async fn transmit(
         &self,
-        message: &ConsensusMessage,
+        message: &ConsensusMessage<Notification, Request, Response>,
         to: Option<&PublicKey>,
     ) -> ConsensusResult<()> {
         let addresses = if let Some(to) = to {

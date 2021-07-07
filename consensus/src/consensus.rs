@@ -4,7 +4,6 @@ use crate::core::{ConsensusMessage, CoreDriver};
 use bft_lib::interfaces::{ConsensusNode, DataSyncNode};
 use bft_lib::smr_context::SmrContext;
 use crypto::{PublicKey, SignatureService};
-use librabft_v2::data_sync::{DataSyncNotification, DataSyncRequest, DataSyncResponse};
 use log::info;
 use network::{NetReceiver, NetSender};
 use serde::{de::DeserializeOwned, Serialize};
@@ -21,14 +20,14 @@ pub struct Consensus;
 
 impl Consensus {
     #[allow(clippy::too_many_arguments)]
-    pub async fn run<Node, Payload>(
+    pub async fn run<Node, Payload, Notification, Request, Response>(
         name: PublicKey,
         committee: Committee,
         parameters: Parameters,
         store: Store,
         signature_service: SignatureService,
-        tx_consensus: Sender<ConsensusMessage>,
-        rx_consensus: Receiver<ConsensusMessage>,
+        tx_consensus: Sender<ConsensusMessage<Notification, Request, Response>>,
+        rx_consensus: Receiver<ConsensusMessage<Notification, Request, Response>>,
         rx_mempool: Receiver<Payload>,
         //tx_commit: Sender<dyn CommitCertificate<State>>, //  doesn't have a size known at compile-time
     ) where
@@ -38,12 +37,15 @@ impl Consensus {
             + 'static
             + DataSyncNode<
                 Context,
-                Notification = DataSyncNotification<Context>,
-                Request = DataSyncRequest,
-                Response = DataSyncResponse<Context>,
+                Notification = Notification,
+                Request = Request,
+                Response = Response,
             >,
         Context: SmrContext,
         Payload: Send + 'static + Default + Serialize + DeserializeOwned + Debug,
+        Notification: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
+        Request: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
+        Response: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
     {
         // NOTE: The following log entries are used to compute performance.
         info!(
@@ -87,7 +89,7 @@ impl Consensus {
         //let mempool_driver = MempoolDriver::new(tx_consensus_mempool);
 
         // Spawn the core driver.
-        CoreDriver::<Node, Payload>::spawn(
+        CoreDriver::<Node, Payload, Notification, Request, Response>::spawn(
             name,
             committee,
             parameters,

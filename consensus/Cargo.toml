@@ -22,7 +22,6 @@ store = { path = "../store" }
 crypto = { path = "../crypto" }
 network = { path = "../network" }
 bft-lib = { path = "../bft-lib" }
-librabft-v2 = { path = "../librabft-v2" }
 
 [dev-dependencies]
 rand = "0.7.3"
