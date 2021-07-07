@@ -1,20 +1,18 @@
 use crate::config::{Committee, Parameters};
 use crate::context::Context;
 use crate::core::{ConsensusMessage, CoreDriver};
+use async_trait::async_trait;
 use bft_lib::interfaces::{ConsensusNode, DataSyncNode};
 use bft_lib::smr_context::SmrContext;
+use bytes::Bytes;
 use crypto::{PublicKey, SignatureService};
 use log::info;
-use network::{NetReceiver, NetSender};
+use network::{MessageHandler, Receiver as NetworkReceiver, Writer};
 use serde::{de::DeserializeOwned, Serialize};
+use std::error::Error;
 use std::fmt::Debug;
 use store::Store;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-
-// TODO: Temporarily disable tests.
-// #[cfg(test)]
-// #[path = "tests/consensus_tests.rs"]
-// pub mod consensus_tests;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 pub struct Consensus;
 
@@ -43,9 +41,9 @@ impl Consensus {
             >,
         Context: SmrContext,
         Payload: Send + 'static + Default + Serialize + DeserializeOwned + Debug,
-        Notification: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
-        Request: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
-        Response: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync,
+        Notification: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync + Clone,
+        Request: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync + Clone,
+        Response: Send + 'static + Debug + Serialize + DeserializeOwned + Debug + Sync + Clone,
     {
         // NOTE: The following log entries are used to compute performance.
         info!(
@@ -65,8 +63,6 @@ impl Consensus {
             parameters.min_block_delay
         );
 
-        let (tx_network, rx_network) = channel(1_000);
-
         // Make the network sender and receiver.
         let address = committee
             .address(&name)
@@ -75,15 +71,7 @@ impl Consensus {
                 x
             })
             .expect("Our public key is not in the committee");
-        let network_receiver = NetReceiver::new(address, tx_consensus);
-        tokio::spawn(async move {
-            network_receiver.run().await;
-        });
-
-        let mut network_sender = NetSender::new(rx_network);
-        tokio::spawn(async move {
-            network_sender.run().await;
-        });
+        NetworkReceiver::spawn(address, /* handler */ ReceiverHandler { tx_consensus });
 
         // Make the mempool driver which will mediate our requests to the mempool.
         //let mempool_driver = MempoolDriver::new(tx_consensus_mempool);
@@ -97,8 +85,35 @@ impl Consensus {
             store,
             rx_consensus,
             rx_mempool,
-            tx_network,
             //tx_commit
         );
+    }
+}
+
+/// Defines how the network receiver handles incoming primary messages.
+#[derive(Clone)]
+struct ReceiverHandler<Notification, Request, Response> {
+    tx_consensus: Sender<ConsensusMessage<Notification, Request, Response>>,
+}
+
+#[async_trait]
+impl<Notification, Request, Response> MessageHandler
+    for ReceiverHandler<Notification, Request, Response>
+where
+    Notification: Clone + Send + Sync + 'static + DeserializeOwned + Debug,
+    Request: Clone + Send + Sync + 'static + DeserializeOwned + Debug,
+    Response: Clone + Send + Sync + 'static + DeserializeOwned + Debug,
+{
+    async fn dispatch(
+        &self,
+        _writer: &mut Writer,
+        serialized: Bytes,
+    ) -> Result<(), Box<dyn Error>> {
+        let message = bincode::deserialize(&serialized)?;
+        self.tx_consensus
+            .send(message)
+            .await
+            .expect("Failed to send transaction");
+        Ok(())
     }
 }

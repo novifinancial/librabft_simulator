@@ -9,21 +9,15 @@ use bytes::Bytes;
 use crypto::{PublicKey, SignatureService};
 use futures::executor::block_on;
 use log::{debug, warn};
-use network::NetMessage;
+use network::SimpleSender;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
 use std::time::{SystemTime, UNIX_EPOCH};
 use store::Store;
-use tokio::sync::mpsc::{Receiver, Sender};
-
-// TODO: Temporarily disable tests.
-// #[cfg(test)]
-// #[path = "tests/core_tests.rs"]
-// pub mod core_tests;
+use tokio::sync::mpsc::Receiver;
 
 pub type RoundNumber = u64;
 
-// TODO: So currently, the (non-simulated) Context only works for LibraBFTv2 messages?
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ConsensusMessage<Notification, Request, Response> {
     DataSyncNotification {
@@ -44,11 +38,11 @@ pub struct CoreDriver<Node, Payload, Notification, Request, Response> {
     committee: Committee,
     rx_consensus: Receiver<ConsensusMessage<Notification, Request, Response>>,
     rx_mempool: Receiver<Payload>,
-    tx_network: Sender<NetMessage>,
     //tx_commit: Sender<CommitCertificate>,
     node: Node,
     context: Context,
     timer: Timer,
+    network: SimpleSender,
 }
 
 impl<Node, Payload, Notification, Request, Response>
@@ -74,7 +68,6 @@ where
         store: Store,
         rx_consensus: Receiver<ConsensusMessage<Notification, Request, Response>>,
         rx_mempool: Receiver<Payload>,
-        tx_network: Sender<NetMessage>,
         //tx_commit: Sender<CommitCertificate>,
     ) {
         let mut context = Context::new(
@@ -94,11 +87,11 @@ where
                 committee,
                 rx_consensus,
                 rx_mempool,
-                tx_network,
                 //tx_commit,
                 context,
                 node,
                 timer,
+                network: SimpleSender::new(),
             }
             .run()
             .await;
@@ -116,21 +109,19 @@ where
 
     /// Send a message through the network.
     async fn transmit(
-        &self,
+        &mut self,
         message: &ConsensusMessage<Notification, Request, Response>,
         to: Option<&PublicKey>,
     ) -> ConsensusResult<()> {
-        let addresses = if let Some(to) = to {
+        let bytes = bincode::serialize(message).expect("Failed to serialize core message");
+        if let Some(to) = to {
             debug!("Sending {:?} to {}", message, to);
-            vec![self.committee.address(to)?]
+            let address = self.committee.address(to)?;
+            self.network.send(address, Bytes::from(bytes)).await;
         } else {
             debug!("Broadcasting {:?}", message);
-            self.committee.broadcast_addresses(&self.name)
-        };
-        let bytes = bincode::serialize(message).expect("Failed to serialize core message");
-        let message = NetMessage(Bytes::from(bytes), addresses);
-        if let Err(e) = self.tx_network.send(message).await {
-            panic!("Failed to send message through network channel: {}", e);
+            let addresses = self.committee.broadcast_addresses(&self.name);
+            self.network.broadcast(addresses, Bytes::from(bytes)).await;
         }
         Ok(())
     }
