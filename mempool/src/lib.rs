@@ -3,7 +3,6 @@ mod batch_maker;
 mod config;
 mod mempool;
 mod processor;
-mod quorum_waiter;
 
 #[cfg(test)]
 #[path = "tests/common.rs"]
