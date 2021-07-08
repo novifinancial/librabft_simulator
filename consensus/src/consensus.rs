@@ -1,11 +1,11 @@
-use crate::config::{Committee, Parameters};
+use crate::config::Committee;
 use crate::context::Context;
 use crate::core::{ConsensusMessage, CoreDriver};
 use async_trait::async_trait;
 use bft_lib::interfaces::{ConsensusNode, DataSyncNode};
 use bft_lib::smr_context::SmrContext;
 use bytes::Bytes;
-use crypto::{PublicKey, SecretKey, SignatureService};
+use crypto::{PublicKey, SignatureService};
 use log::info;
 use mempool::Payload;
 use network::{MessageHandler, Receiver as NetworkReceiver, Writer};
@@ -23,9 +23,8 @@ pub struct Consensus;
 impl Consensus {
     pub fn spawn<Node, Notification, Request, Response>(
         name: PublicKey,
-        secret: SecretKey,
         committee: Committee,
-        parameters: Parameters,
+        signature_service: SignatureService,
         store: Store,
         rx_mempool: Receiver<Payload>,
         //tx_commit: Sender<dyn CommitCertificate<State>>, //  doesn't have a size known at compile-time
@@ -48,9 +47,6 @@ impl Consensus {
     {
         let (tx_consensus, rx_consensus) = channel(CHANNEL_CAPACITY);
 
-        // Write the parameters to the logs.
-        parameters.log();
-
         // Make the network sender and receiver.
         let address = committee
             .address(&name)
@@ -61,14 +57,10 @@ impl Consensus {
             .expect("Our public key is not in the committee");
         NetworkReceiver::spawn(address, /* handler */ ReceiverHandler { tx_consensus });
 
-        // The `SignatureService` is used to require signatures on specific digests.
-        let signature_service = SignatureService::new(secret);
-
         // Spawn the core driver.
         CoreDriver::<Node, Notification, Request, Response>::spawn(
             name,
             committee,
-            parameters,
             signature_service,
             store,
             rx_consensus,

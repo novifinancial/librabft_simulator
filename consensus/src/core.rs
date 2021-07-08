@@ -1,4 +1,4 @@
-use crate::config::{Committee, Parameters};
+use crate::config::Committee;
 use crate::context::Context;
 use crate::timer::Timer;
 use bft_lib::base_types::NodeTime;
@@ -59,7 +59,6 @@ where
     pub fn spawn(
         name: PublicKey,
         committee: Committee,
-        _parameters: Parameters,
         signature_service: SignatureService,
         store: Store,
         rx_consensus: Receiver<ConsensusMessage<Notification, Request, Response>>,

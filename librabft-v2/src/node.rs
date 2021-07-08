@@ -71,8 +71,7 @@ impl CommitTracker {
 }
 
 /// Initial configuration of LibraBFTv2 node.
-#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
-#[cfg_attr(test, derive(Default))]
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize, Default)]
 pub struct NodeConfig {
     pub target_commit_interval: Duration,
     pub delta: Duration,

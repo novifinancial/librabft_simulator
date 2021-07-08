@@ -1,9 +1,13 @@
 use crate::config::Export as _;
 use crate::config::{Committee, Parameters, Secret};
+use bft_lib::base_types::NodeTime;
+use bft_lib::interfaces::ConsensusNode;
 use consensus::{Consensus, Context};
+use crypto::SignatureService;
+use futures::executor::block_on;
 use librabft_v2::{
     data_sync::{DataSyncNotification, DataSyncRequest, DataSyncResponse},
-    node::NodeState,
+    node::{NodeConfig, NodeState},
 };
 use log::info;
 use mempool::Mempool;
@@ -64,6 +68,27 @@ impl LibraBftV2Node {
             /* tx_consensus */ tx_payload,
         );
 
+        // The `SignatureService` is used to require signatures on specific digests.
+        let signature_service = SignatureService::new(secret_key);
+
+        // Initialize the node state.
+        {
+            let mut context = Context::new(
+                name,
+                committee.consensus.clone(),
+                store.clone(),
+                signature_service.clone(),
+            );
+            let config = NodeConfig {
+                target_commit_interval: parameters.consensus.target_commit_interval,
+                delta: parameters.consensus.delta,
+                gamma: parameters.consensus.gamma,
+                lambda: parameters.consensus.lambda,
+            };
+            let mut node = NodeState::make_initial_state(&context, config, NodeTime(0));
+            block_on(node.save_node(&mut context)).expect("Failed to save initial node state");
+        }
+
         // Spawn the consensus.
         Consensus::spawn::<
             NodeState<Context>,
@@ -72,9 +97,8 @@ impl LibraBftV2Node {
             DataSyncResponse<Context>,
         >(
             name,
-            secret_key,
             committee.consensus.clone(),
-            parameters.consensus,
+            signature_service,
             store,
             /* rx_mempool */ rx_payload, //tx_commit,
         );

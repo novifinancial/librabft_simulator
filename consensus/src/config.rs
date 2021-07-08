@@ -1,5 +1,5 @@
+use bft_lib::base_types::Duration;
 use crypto::PublicKey;
-use log::info;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -9,39 +9,20 @@ pub type EpochNumber = u128;
 
 #[derive(Serialize, Deserialize)]
 pub struct Parameters {
-    pub timeout_delay: u64,
-    pub sync_retry_delay: u64,
-    pub max_payload_size: usize,
-    pub min_block_delay: u64,
+    pub target_commit_interval: Duration,
+    pub delta: Duration,
+    pub gamma: f64,
+    pub lambda: f64,
 }
 
 impl Default for Parameters {
     fn default() -> Self {
         Self {
-            timeout_delay: 5000,
-            sync_retry_delay: 10_000,
-            max_payload_size: 500,
-            min_block_delay: 100,
+            target_commit_interval: Duration(500),
+            delta: Duration(5_000),
+            gamma: 500.0,
+            lambda: 100.0,
         }
-    }
-}
-
-impl Parameters {
-    pub fn log(&self) {
-        // NOTE: The following log entries are used to compute performance.
-        info!("Consensus timeout delay set to {} ms", self.timeout_delay);
-        info!(
-            "Consensus synchronizer retry delay set to {} ms",
-            self.sync_retry_delay
-        );
-        info!(
-            "Consensus max payload size set to {} B",
-            self.max_payload_size
-        );
-        info!(
-            "Consensus min block delay set to {} ms",
-            self.min_block_delay
-        );
     }
 }
 
