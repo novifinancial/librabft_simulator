@@ -2,6 +2,12 @@
 members = [
         "bft-lib",
         "librabft-v2",
+        "crypto",
+        "store",
+        "network",
+        "consensus",
+        "mempool",
+        "node"
 ]
 
 [profile.release]

@@ -71,8 +71,7 @@ impl CommitTracker {
 }
 
 /// Initial configuration of LibraBFTv2 node.
-#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
-#[cfg_attr(test, derive(Default))]
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize, Default)]
 pub struct NodeConfig {
     pub target_commit_interval: Duration,
     pub delta: Duration,
@@ -213,7 +212,7 @@ where
             let value = context
                 .read_value("node_state".to_string())
                 .await?
-                .ok_or(anyhow!("missing state value"))?;
+                .ok_or_else(|| anyhow!("missing state value"))?;
             let node: Self = bincode::deserialize(&value)?;
             let previous_time = std::cmp::max(
                 node.latest_query_all_time,
