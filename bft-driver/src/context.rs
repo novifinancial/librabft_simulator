@@ -178,14 +178,13 @@ impl CryptographicModule for Context {
     }
 }
 
-// TODO: Remove 'block_on'. How to make the error type match (rocksdb error -> anyhow) ?
 impl Storage for Context {
     fn read_value(&mut self, key: String) -> AsyncResult<Option<Vec<u8>>> {
         Box::pin(async move {
             self.store
                 .read(key.into_bytes())
                 .await
-                .map_err(|e| anyhow::anyhow!("{}", e))
+                .map_err(anyhow::Error::from)
         })
     }
 

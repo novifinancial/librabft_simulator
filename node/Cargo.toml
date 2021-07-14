@@ -22,13 +22,13 @@ anyhow = "1.0.38"
 
 crypto = { path = "../crypto" }
 store = { path = "../store" }
-consensus = { path = "../consensus" }
+bft-driver = { path = "../bft-driver" }
 mempool = { path = "../mempool" }
 librabft-v2 = { path = "../librabft-v2" }
 bft-lib = { path = "../bft-lib" }
 
 [features]
-benchmark = ["consensus/benchmark", "mempool/benchmark"]
+benchmark = ["bft-driver/benchmark", "mempool/benchmark"]
 
 [[bin]]         
 name = "client"   

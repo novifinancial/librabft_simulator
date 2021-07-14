@@ -4,8 +4,8 @@ mod node;
 use crate::config::Export as _;
 use crate::config::{Committee, Secret};
 use crate::node::LibraBftV2Node as Node;
+use bft_driver::Committee as ConsensusCommittee;
 use clap::{crate_name, crate_version, App, AppSettings, SubCommand};
-use consensus::Committee as ConsensusCommittee;
 use env_logger::Env;
 use futures::future::join_all;
 use log::error;
@@ -17,7 +17,7 @@ use tokio::task::JoinHandle;
 async fn main() {
     let matches = App::new(crate_name!())
         .version(crate_version!())
-        .about("A research implementation of the HostStuff protocol.")
+        .about("A research implementation of the HotStuff protocol.")
         .args_from_usage("-v... 'Sets the level of verbosity'")
         .subcommand(
             SubCommand::with_name("keys")

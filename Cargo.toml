@@ -5,7 +5,7 @@ members = [
         "crypto",
         "store",
         "network",
-        "consensus",
+        "bft-driver",
         "mempool",
         "node"
 ]

@@ -1,5 +1,5 @@
 use crate::node::NodeError;
-use consensus::{Committee as ConsensusCommittee, Parameters as ConsensusParameters};
+use bft_driver::{Committee as ConsensusCommittee, Parameters as ConsensusParameters};
 use crypto::{generate_production_keypair, PublicKey, SecretKey};
 use mempool::{Committee as MempoolCommittee, Parameters as MempoolParameters};
 use serde::de::DeserializeOwned;

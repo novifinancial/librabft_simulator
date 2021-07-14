@@ -1,8 +1,8 @@
 use crate::config::Export as _;
 use crate::config::{Committee, Parameters, Secret};
+use bft_driver::{Consensus, Context};
 use bft_lib::base_types::NodeTime;
 use bft_lib::interfaces::ConsensusNode;
-use consensus::{Consensus, Context};
 use crypto::SignatureService;
 use futures::executor::block_on;
 use librabft_v2::{

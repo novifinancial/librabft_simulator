@@ -1,5 +1,5 @@
 [package]
-name = "consensus"
+name = "bft-driver"
 version = "0.1.0"
 authors = ["Alberto Sonnino <alberto@sonnino.com>"]
 edition = "2018"
