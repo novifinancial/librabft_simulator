@@ -46,7 +46,7 @@ pub struct DataSyncRequest {
     known_quorum_certificates: BTreeSet<Round>,
 }
 
-#[derive(Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct DataSyncResponse<Context: SmrContext> {
     /// Current epoch identifier.
     current_epoch: EpochId,
