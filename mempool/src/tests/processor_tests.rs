@@ -1,4 +1,4 @@
-// Copyright(C) Facebook, Inc. and its affiliates.
+// Copyright (c) Facebook, Inc. and its affiliates.
 use super::*;
 use crate::common::batch;
 use std::fs;

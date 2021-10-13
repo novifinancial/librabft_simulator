@@ -1,4 +1,4 @@
-// Copyright(C) Facebook, Inc. and its affiliates.
+// Copyright (c) Facebook, Inc. and its affiliates.
 use crate::error::NetworkError;
 use async_trait::async_trait;
 use bytes::Bytes;

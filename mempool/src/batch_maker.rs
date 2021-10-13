@@ -1,4 +1,4 @@
-// Copyright(C) Facebook, Inc. and its affiliates.
+// Copyright (c) Facebook, Inc. and its affiliates.
 use crate::mempool::SerializedBatch;
 #[cfg(feature = "benchmark")]
 use crypto::Digest;

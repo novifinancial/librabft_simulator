@@ -1,4 +1,4 @@
-// Copyright(C) Facebook, Inc. and its affiliates.
+// Copyright (c) Facebook, Inc. and its affiliates.
 mod batch_maker;
 mod config;
 mod mempool;

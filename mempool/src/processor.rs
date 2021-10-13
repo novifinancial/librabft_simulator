@@ -1,4 +1,4 @@
-// Copyright(C) Facebook, Inc. and its affiliates.
+// Copyright (c) Facebook, Inc. and its affiliates.
 use crate::mempool::SerializedBatch;
 use crypto::Digest;
 use ed25519_dalek::Digest as _;

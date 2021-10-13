@@ -1,4 +1,4 @@
-// Copyright(C) Facebook, Inc. and its affiliates.
+// Copyright (c) Facebook, Inc. and its affiliates.
 use super::*;
 use futures::sink::SinkExt as _;
 use tokio::sync::mpsc::channel;
