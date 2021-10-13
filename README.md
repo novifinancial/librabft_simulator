@@ -1,5 +1,5 @@
 [![Build Status](https://github.com/novifinancial/librabft_simulator/workflows/Rust/badge.svg)](https://github.com/novifinancial/librabft_simulator/actions?query=workflow%3ARust)
-[![License](https://img.shields.io/badge/license-Apache-green.svg)](LICENSE.md)
+[![License](https://img.shields.io/badge/license-Apache-green.svg)](LICENSE)
 
 # Discrete-Event Simulation for BFT Consensus Protocols
 
@@ -36,14 +36,8 @@ Example output:
 
 ## Contributing
 
-Read our [Contributing guide](https://developers.libra.org/docs/community/contributing).
-
-## Libra Community
-
-Join us on the [Libra Discourse](https://community.libra.org)
-
-Get the latest updates to our project by signing up to our [newsletter](https://developers.libra.org/newsletter_form).
+Read our [Contributing guide](https://developers.diem.org/docs/community/contributing).
 
 ## License
 
-The content of this repository is licensed as [Apache 2.0](https://github.com/novi/research/blob/master/LICENSE)
+The content of this repository is licensed as [Apache 2.0](LICENSE)
